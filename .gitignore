@@ -10,3 +10,6 @@ logs
 *.json
 *.pem
 *.ppk
+
+# directories that need to be ignored
+programmers_data/
