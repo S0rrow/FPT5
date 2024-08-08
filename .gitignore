@@ -8,3 +8,5 @@ data
 logs
 *.log
 *.json
+*.pem
+*.ppk
