@@ -68,7 +68,7 @@ dag = DAG(
 
 run_script = BashOperator(
     task_id='testing',
-    bash_command='date >> time.txt && pwd',
+    bash_command='date >> time.txt && pwd >> time.txt && cat time.txt',
     dag=dag,
 )
 
