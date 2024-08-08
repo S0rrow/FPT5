@@ -48,8 +48,7 @@ def get_positions_info(url_positions, url_detail, limit, offset_max):
             break
         details = [get_detail(url=url_detail, curr_t=current_time, position_id=id) for id in tqdm(id_list, desc="Fetching details")]
         # Changed: Filter out None values to ensure only valid data is added
-        positions_data += [detail for detail in details if detail is not None]
-        time.sleep(1)  # Added: Added delay to prevent overloading the server
+        positions_data += [d for d in details if d is not None]
     return positions_data
 
 def export_json(p_data_list, d_path="./wanted_data"):
