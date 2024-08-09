@@ -1,19 +1,41 @@
 from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
+from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from datetime import datetime
-
-def execute_pvc_script():
-    exec(open('/mnt/data/airflow/testers/test.py').read())
 
 default_args = {
     'owner': 'airflow',
-    'start_date': datetime(2023, 1, 1),
+    'depends_on_past': False,
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
 }
 
-with DAG(dag_id='execute_pvc_script_dag', default_args=default_args, schedule_interval=None) as dag:
+with DAG(
+    dag_id='run_script_from_pvc_dag', 
+    default_args=default_args, 
+    schedule_interval=None,
+    catchup=False,
+    ) as dag:
     
-    run_script = PythonOperator(
-        task_id='run_pvc_script',
-        python_callable=execute_pvc_script,
+    run_script = KubernetesPodOperator(
+        namespace='airflow',
+        image='apache/airflow:2.9.3',
+        cmds=["python", "/mnt/data/airflow/testers/test.py"],
+        name='run-script',
+        task_id='run_script_from_pvc',
+        volume_mounts=[
+            {
+                'name': 'airflow-worker-pvc',
+                'mountPath': '/mnt/data/airflow'
+            }
+        ],
+        volumes=[
+            {
+                'name': 'airflow-worker-pvc',
+                'persistentVolumeClaim': {
+                    'claimName': 'airflow-worker-pvc'
+                }
+            }
+        ]
     )
