@@ -15,7 +15,7 @@ volume_mount = k8s.V1VolumeMount(
     name="airflow-worker-pvc-mount",
     mount_path="/mnt/data/airflow",
     sub_path=None,
-    read_only=True
+    read_only=False
 )
 
 volume = k8s.V1Volume(
