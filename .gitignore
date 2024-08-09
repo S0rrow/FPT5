@@ -13,3 +13,6 @@ logs
 
 # directories that need to be ignored
 programmers_data/
+crawl_code/linkedin/downloaded_files/
+crawl_code/linkedin/latest_logs/
+crawl_code/linkedin/logs/
