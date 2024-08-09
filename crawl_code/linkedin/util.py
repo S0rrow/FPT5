@@ -1,6 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -37,9 +39,11 @@ class DGLogger:
         else: assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" >> {self.path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
 
 class LinkedIn:
-    logger = DGLogger()
-    driver = None
-    err_job_list = []
+    def __init__(self):
+        self.driver = None
+        self.err_job_list = []
+        self.logger = DGLogger()
+
     def DGWebDriverWait(self, _CSS, msg="wait time out error"):
         try:
             WebDriverWait(self.driver,3).until(EC.presence_of_element_located((By.CSS_SELECTOR, _CSS)))
@@ -50,7 +54,7 @@ class LinkedIn:
     
     def init_selenium(self):
         options = webdriver.ChromeOptions()
-        service = webdriver.ChromeService(executable_path='/usr/bin/chromedriver')
+        #service = webdriver.ChromeService(executable_path='/usr/bin/chromedriver')
         options.add_argument(argument="--headless")
         options.add_argument(argument="--window-size=1920,1080")
         self.driver = webdriver.Chrome(options=options)

@@ -13,3 +13,5 @@ logs
 
 # directories that need to be ignored
 programmers_data/
+downloaded_files/
+latest_logs/
