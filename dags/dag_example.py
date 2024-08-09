@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+from airflow.operators.bash import BashOperator
 from kubernetes.client import models as k8s
 from datetime import timedelta
 
@@ -39,3 +40,12 @@ with DAG(
         volume_mounts=[volume_mount],
         volumes=[volume]
     )
+
+    notify_result = BashOperator(
+        task_id='notify_result',
+        bash_command='echo "App execution completed" >> /mnt/data/airflow/testers/result.log',
+        depends_on_past=True,
+        trigger_rule='all_success',
+    )
+    
+    run_script >> notify_result
