@@ -34,18 +34,9 @@ with DAG(
     run_script = KubernetesPodOperator(
         namespace='airflow',
         image='apache/airflow:2.9.3',
-        cmds=["python", "/mnt/data/airflow/testers/test.py"],
+        cmds=["/mnt/data/airflow/venv/bin/python", "/mnt/data/airflow/testers/test.py"],
         name='run-script',
         task_id='run_script_from_pvc',
         volume_mounts=[volume_mount],
         volumes=[volume]
     )
-
-    notify_result = BashOperator(
-        task_id='notify_result',
-        bash_command='echo "App execution completed" >> /mnt/data/airflow/testers/result.log',
-        depends_on_past=True,
-        trigger_rule='all_success',
-    )
-    
-    run_script >> notify_result
