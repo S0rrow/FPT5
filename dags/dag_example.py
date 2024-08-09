@@ -36,6 +36,6 @@ with DAG(
         cmds=["python", "/mnt/data/airflow/test.py"],
         name='run-script',
         task_id='run_script_from_pvc',
-        volume_mounts=volume_mount,
-        volumes=volume
+        volume_mounts=[volume_mount],
+        volumes=[volume]
     )
