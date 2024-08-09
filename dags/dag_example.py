@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+from kubernetes.client.models import V1VolumeMount, V1Volume, V1PersistentVolumeClaim
 from datetime import timedelta
 
 default_args = {
@@ -21,21 +22,21 @@ with DAG(
     run_script = KubernetesPodOperator(
         namespace='airflow',
         image='apache/airflow:2.9.3',
-        cmds=["python", "/mnt/data/airflow/testers/test.py"],
+        cmds=["python", "/mnt/data/airflow/test.py"],
         name='run-script',
         task_id='run_script_from_pvc',
         volume_mounts=[
-            {
-                'name': 'airflow-worker-pvc',
-                'mountPath': '/mnt/data/airflow'
-            }
+            V1VolumeMount(
+                name='airflow-worker-pvc',
+                mount_path='/mnt/data/airflow'
+            )
         ],
         volumes=[
-            {
-                'name': 'airflow-worker-pvc',
-                'persistentVolumeClaim': {
-                    'claimName': 'airflow-worker-pvc'
-                }
-            }
+            V1Volume(
+                name='airflow-worker-pvc',
+                persistent_volume_claim=V1PersistentVolumeClaim(
+                    claim_name='airflow-worker-pvc'
+                )
+            )
         ]
     )
