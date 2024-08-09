@@ -33,7 +33,7 @@ with DAG(
     run_script = KubernetesPodOperator(
         namespace='airflow',
         image='apache/airflow:2.9.3',
-        cmds=["python", "/mnt/data/airflow/test.py"],
+        cmds=["python", "/mnt/data/airflow/testers/test.py"],
         name='run-script',
         task_id='run_script_from_pvc',
         volume_mounts=[volume_mount],
