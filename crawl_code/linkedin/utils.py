@@ -1,8 +1,6 @@
-import os, requests, random, string, webbrowser, json
-from urllib.parse import parse_qs, urlparse
+import os
 from time import gmtime, strftime
-from tqdm import tqdm
-# https://doziestar.medium.com/sample-code-snippets-for-working-with-linkedin-api-in-python-68f783e400fd
+
 class Logger:
     '''
     flag 0:DEBUG, 1:ERROR, 2:WARN, 3:STATUS, 4:INFO
