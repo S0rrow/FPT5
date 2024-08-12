@@ -1,9 +1,8 @@
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.operators.bash import BashOperator
-from airflow.utils.dates import days_ago
+from kubernetes.client import models as k8s
 from datetime import timedelta
-import subprocess
 
 default_args = {
     'owner': 'airflow',
@@ -13,38 +12,31 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
+volume_mount = k8s.V1VolumeMount(
+    name="airflow-worker-pvc",
+    mount_path="/mnt/data/airflow",
+    sub_path=None,
+    read_only=False
+)
 
-def run_ssh_command(command):
-    ssh_command = f'ssh hadoop@node3 \"{command}\"'
-    
-    try:
-        result = subprocess.run(ssh_command, shell=True, check=True, capture_output=True)
-        print("SSH command output:", result.stdout.decode('utf-8'))
-        return result.stdout.decode('utf-8')
-    except subprocess.CalledProcessError as e:
-        print("Error executing SSH command:", e)
-        raise
+volume = k8s.V1Volume(
+    name="airflow-worker-pvc",
+    persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-worker-pvc"),
+)
 
 with DAG(
-    'ssh_run_app_subprocess',
+    dag_id='run_script_from_pvc_dag',
     default_args=default_args,
-    description='Run Python script on remote server via SSH using PythonOperator and subprocess',
-    schedule_interval=timedelta(days=1),
-    start_date=days_ago(1),
+    schedule_interval=None,
     catchup=False,
 ) as dag:
-
-    activate_venv_and_run_app = PythonOperator(
-        task_id='activate_venv_and_run_app',
-        python_callable=run_ssh_command,
-        op_args=['source ~/repository/airflow_test/venv/bin/activate && ~/repository/airflow_test/venv/bin/python ~/repository/airflow_test/app.py']
+    
+    run_script = KubernetesPodOperator(
+        namespace='airflow',
+        image='apache/airflow:2.9.3',
+        cmds=["/mnt/data/airflow/venv/bin/python", "/mnt/data/airflow/testers/test.py"],
+        name='run-script',
+        task_id='run_script_from_pvc',
+        volume_mounts=[volume_mount],
+        volumes=[volume]
     )
-
-    notify_result = BashOperator(
-        task_id='notify_result',
-        bash_command='echo "App execution completed"',
-        depends_on_past=True,
-        trigger_rule='all_success',
-    )
-
-    activate_venv_and_run_app >> notify_result
