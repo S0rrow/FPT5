@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.operators.bash import BashOperator
 from kubernetes.client import models as k8s
+from airflow.utils.dates import days_ago
 from datetime import timedelta
 
 default_args = {
@@ -30,6 +31,7 @@ with DAG(
     default_args=default_args,
     description="activate dag every 11'o KST to scrape job searches from linkedin",
     schedule_interval='0 2 * * *',
+    start_date=days_ago(1),
     catchup=False,
 ) as dag:
     
