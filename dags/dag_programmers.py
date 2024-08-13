@@ -63,12 +63,12 @@ dag = DAG(
     'test_from_psw',
     default_args=default_args,
     description='Run main.py every day at 11 PM',
-    schedule_interval='*/5 * * * *',
+    schedule_interval='0 * * * *',
 )
 
 run_script = BashOperator(
     task_id='testing',
-    bash_command='cd /home/team3/repository/workspaces/psw/ && date >> time.txt',
+    bash_command='date >> time.txt && pwd >> time.txt && cat time.txt',
     dag=dag,
 )
 
