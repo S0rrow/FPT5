@@ -1,181 +1,31 @@
-# DE31-3rd_team5
+# FPT5
 
 ## 목표
-이 미니 프로젝트의 목표는 Playdata 코딩 부트캠프의 31기 데이터 엔지니어링 과정 동안 최종 프로젝트를 위한 기본 배경을 구축하는 것입니다.
+ 이 프로젝트는 수많은 채용 사이트들에서 여러 공고들을 수집하고 분석해 특정 업무 분야에 대해서 다양한 업무 분야에서 실제로 각광받거나 많이 사용되는 기술 스택의 목록을 추천하는 시스템을 구성하기 위한 것입니다.
+
+
+## 개요
+
+단순히 컴퓨터를 다루거나 코드를 작성한다는 막연한 수준의 감각으로 취업을 준비하기에는 IT 직종에서 요구하는 기술의 종류와 깊이는 천차만별입니다. 
+
+이 때문에 IT 분야로 취직하고자 하는 사람들의 경우, 해당 분야에서 깊이있게 몇 년을 공부한 것이 아니라면 무엇을 공부해야 하는지조차 감을 잡기 어려운 것이 현실입니다.
+
+또한 최근의 취직 시장의 경우 그 벽이 높아지면서 한 가지 기술에 특화된 스페셜리스트를 요구하기보다는 다양한 분야의 기술 스택을 두루두루 경험해본 제네럴리스트를 요구하는 경우가 늘어나고 있습니다.
+ 
+그러나 개인의 입장에서 어떠한 기술이 현재 각광받는지, 어떠한 기술이 실제로 업무에서 많이 사용되는지를 단순히 몇 번 검색하는 방법으로는 알기 어렵다는 문제점이 존재합니다.
+
+이 프로젝트를 통해 이러한 문제점을 보완하고자 특정한 업무 분야에서 여러 채용 공고들을 분석해 특정한 업무 분야에 대해서 기업들이 필요로 하는 빈도가 높은 기술 스택의 목록을 추천하는 시스템을 구성하고자 합니다.
 
 ## 프로젝트 아키텍처 개요
 ![image](./attachments/overall.png)
 
-|프레임워크|사용 목적|
+|Stack Name|Purpose|
 |---|---|
-|Python|프로젝트에서 사용된 기본 언어|
-|HDFS|클러스터 컴퓨터의 데이터 레이크|
-|Kafka|대용량 데이터를 HDFS에 안정적으로 전달하기 위한 버퍼링|
-|Spark|분산 컴퓨팅 환경에서 대용량 데이터에 대한 EDA 실행|
-|MySQL(MariaDB)|분석된 데이터를 저장하고 빠르게 액세스하기 위해 사용|
-|Airflow|각 데이터 크롤링-저장-분석 과정을 자동화|
-
-## 환경 요약
-- Python 3.10.12
-- Spark 3.5.1
-- Hadoop 3.3.6
-- Kafka 2.13-3.2
-- mariadb-lts 11.2.4-1
-
-## 설치
-### 1. Hadoop
-프로젝트 내에서 사용된 Hadoop 클러스터는 미리 구축된 클러스터이므로, 이 문서에서는 Hadoop 및 클러스터 설치 방법에 대해 설명하지 않습니다.
-
-빠른 시작을 위해 [공식 튜토리얼](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SingleCluster.html)을 참고하세요!
-
-### 2. Spark
-우리는 16GB RAM과 4코어를 가진 2대의 머신을 worker로, 12GB RAM과 4코어를 가진 1대의 머신을 master로 결합하여 Spark 클러스터를 구성했습니다. 
-
-더 나은 환경과 컴퓨팅 성능을 위해 더 많은 RAM과 코어를 가진 머신을 사용하는 것을 추천합니다.
-
-설치 과정은 비교적 간단했습니다.
-1) [공식 웹사이트](https://dlcdn.apache.org/spark/spark-3.5.1/spark-3.5.1-bin-hadoop3.tgz)에서 Spark tar 파일을 다운로드합니다.
-
-터미널에서 **wget**을 사용하여 이 작업을 수행할 수 있습니다.
-
-```bash
-wget https://dlcdn.apache.org/spark/spark-3.5.1/spark-3.5.1-bin-hadoop3.tgz
-```
-2) 다운로드한 tar 파일을 풀고 원하는 위치에 배치합니다.
-
-예를 들어, 압축을 푼 파일을 "spark"로 간단히 이름을 변경하고 /opt/ 디렉토리에 배치했습니다.
-
-이 과정에서는 **tar** 명령과 **mv** 명령을 사용할 수 있습니다.
-
-```bash
-tar xvfz spark-3.5.1-bin-hadoop3.tgz
-sudo mv spark-3.5.1-bin-hadoop3 /opt/spark/
-sudo chown -R hadoop:hadoop /opt/spark
-```
-
-3) 환경 변수를 설정합니다.
-
-이 과정을 통해 필요한 환경 변수를 ~/.bashrc 파일에 추가할 수 있습니다.
-
-```bash
-vim ~/.bashrc
-```
-
-추가할 내용은 다음과 같습니다.
-
-```bash
-export SPARK_HOME=/opt/spark
-export PATH=$SPARK_HOME/bin:$PATH
-```
-
-환경 변수를 적용합니다.
-
-```bash
-source ~/.bashrc
-```
-
-4) Spark 클러스터 구성 파일을 설정합니다.
-
-`/opt/spark/conf/` 디렉토리에 있는 `spark-env.sh.template` 파일의 이름을 `spark-env.sh`로 변경하고 편집합니다.
-
-```bash
-mv /opt/spark/conf/spark-env.sh.template /opt/spark/conf/spark-env.sh
-vim /opt/spark/conf/spark-env.sh
-```
-
-내용에 다음을 추가합니다.
-
-```bash
-SPARK_MASTER_HOST='master-node'
-SPARK_WORKER_CORES=4
-SPARK_WORKER_MEMORY=16g
-```
-
-마찬가지로, workers 파일에 워커 노드들을 추가합니다.
-
-```bash
-vim /opt/spark/conf/workers
-```
-
-파일에 다음과 같은 내용을 추가합니다.
-
-```sh
-node1
-node2
-```
-
-5) Spark 클러스터를 실행하고 테스트합니다.
-
-각 포트가 열려 있고 연결 가능하도록 방화벽 구성을 확인하고, 각 worker가 활성화되어 연결 가능한지 확인해야 합니다.
-
-### 3. Airflow
-
-Python 환경은 설치된 패키지에 따라 다르므로, 이 프로젝트에서는 가상 환경을 사용합니다.
-
-이 프로젝트에서는 Python 3.10.12를 사용했습니다.
-
-이 문서에서는 Python 설치에 대해 설명하지 않으며, Python이 설치되어 있다고 가정합니다.
-
-1) 가상 환경 생성.
-
-conda를 사용할 수도 있지만, 이 프로젝트에서는 사용하지 않았으므로 표준 가상 환경을 기준으로 설명합니다.
-
-```bash
-python3 -m venv .venv
-```
-
-2) pip을 사용하여 Airflow 설치.
-
-가상 환경을 활성화합니다.
-
-```bash
-source .venv/bin/activate
-```
-
-최신 Airflow를 설치하기 위해 pip을 업데이트합니다.
-
-```bash
-python -m pip install -U pip
-```
-
-Airflow 설치.
-
-```bash
-pip install apache-airflow
-```
-
-3) 설정 구성.
-
-설치 후, 홈 디렉토리에 *airflow/* 디렉토리가 생성됩니다.
-
-기본적으로 airflow/ 디렉토리에는 *dags/* 디렉토리가 없습니다.
-
-따라서 디렉토리를 만듭니다.
-
-```bash
-mkdir ~/airflow/dags
-```
-
-추가 환경 변수를 bash 프로파일에 추가해야 합니다.
-
-```bash
-vim ~/.bashrc
-```
-
-다음 환경 변수를 bash 프로파일에 적용합니다.
-
-```bash
-export AIRFLOW_HOME=~/airflow
-```
-
-4) Airflow 독립 실행 모드로 테스트 실행.
-
-Airflow는 분산 컴퓨팅 환경에서도 실행할 수 있지만, 이 프로젝트에서는 독립 실행 모드로 사용합니다.
-
-Airflow 독립 실행 모드를 활성화하려면 업데이트된 bash 프로파일과 함께 설정이 적용되어 있어야 합니다.
-
-```bash
-airflow standalone
-```
-
-DAG 설정에 사용된 예제 코드는 [여기](./airflow_sample/dag_example.py)에서 확인할 수 있습니다.
+|AWS|프로젝트의 아키텍쳐를 구성하기 위해 사용된 스택의 대부분은 AWS 상으로 구현되었습니다.|
+|Github|소스코드를 관리하고 어플리케이션을 배포하기 위해 사용했습니다.|
+|Lambda|Python으로 작성된 코드들을 서버리스 환경에서 실행하기 위해 사용했습니다.|
+|S3|초기에 정제되지 않은 파일 형식의 데이터들을 적재하기 위해 사용했습니다.|
+|Spark|대용량 데이터에 대한 EDA를 실행하기 위해 사용했습니다.|
+|DynamoDB|Spark를 통해 분석된 데이터를 NoSQL 방식으로 저장하고 빠르게 액세스하기 위해 사용했습니다.|
+|RDS|웹 인터페이스에 SQL 방식으로 데이터를 제공하기 위해 사용했습니다.|
+|django|웹 인터페이스를 구현하기 위한 프레임워크로 사용했습니다.|
