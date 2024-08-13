@@ -1,4 +1,6 @@
-import crawling_rocketpunch as cr
+import parse_page as pg
+import page_list_api_day as plad
+import parse_job_page as pjp
 import save_json as sj
 
 def main():
@@ -7,8 +9,8 @@ def main():
     }
     url = 'https://www.rocketpunch.com/api/jobs/template?page={}'
     
-    data_dic = cr.rocketpunch_crawler(url, headers)
-    detailed_data = cr.parse_job_page(data_dic, headers)
+    data_dic = plad.rocketpunch_crawler(url, headers)
+    detailed_data = pjp.parse_job_page(data_dic, headers)
     sj.save_dataframe(detailed_data)
     
 if __name__=="__main__":
