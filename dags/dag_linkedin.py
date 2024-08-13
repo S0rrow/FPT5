@@ -40,7 +40,7 @@ with DAG(
         namespace='airflow',
         image='apache/airflow:2.9.3',
         cmds=["/bin/bash", "-c"],
-        arguments=["sh /mnd/data/airflow/linkedin_scraper/runner.sh"],
+        arguments=["sh /mnt/data/airflow/linkedin_scraper/runner.sh"],
         name='linkedin_scraper',
         volume_mounts=[volume_mount],
         volumes=[volume]
