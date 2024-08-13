@@ -36,11 +36,12 @@ with DAG(
 ) as dag:
     
     run_script = KubernetesPodOperator(
+        task_id='run_linkedin_scraper',
         namespace='airflow',
         image='apache/airflow:2.9.3',
-        cmds=["/mnt/data/airflow/venv/bin/python", "/mnt/data/airflow/linkedin_scraper/main.py"],
+        cmds=["/bin/bash", "-c"],
+        arguments=["source /mnt/data/airflow/venv/bin/activate && /mnt/data/airflow/venv/bin/python /mnt/data/airflow/linkedin_scraper/main.py"],
         name='linkedin_scraper',
-        task_id='run_linkedin_scraper',
         volume_mounts=[volume_mount],
         volumes=[volume]
     )
