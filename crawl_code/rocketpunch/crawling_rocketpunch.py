@@ -28,7 +28,6 @@ def rocketpunch_crawler(url, headers):
         res = json.loads(res.text)
         soup = BS(res['data']['template'], 'html.parser')
         data.extend(parse_page(soup))
-        #parse_job_page(data, headers)
         time.sleep(2) # for sake of politeness
     
     return data 
@@ -37,22 +36,37 @@ def rocketpunch_crawler(url, headers):
 # company_id, company_name, job_id, description, job_title, job_career
 def parse_page(soup):
     data_list = []
+    current_timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+    
     try:
-        for company in soup.find_all('div', {'class': 'company item'}):
-            company_data = {}
-            company_data['company_id'] = company['data-company_id']
-            for content in company.find_all('div', {'class': 'content'}):
-                company_data['company_name'] = content.find('a', {'class': 'company-name nowrap header name'}).text.strip()
-                company_data['description'] = content.find('div', {'class': 'description'}).text.strip()
+        
+        companies = soup.find_all('div', {'class': 'company item'})
+        
+        for company in companies:
+            company_id = company['data-company_id']
+            content = company.find('div', {'class': 'content'})
+            company_name = content.find('a', {'class': 'company-name nowrap header name'}).text.strip()
+            description = content.find('div', {'class': 'description'}).text.strip()
+            
+            job_details = content.find_all('div', {'class': 'job-detail'})
+            
+            for job_detail in job_details:
+                job_id = job_detail.find('a', {'class': 'nowrap job-title'})['href'].split('/')[2]
+                job_title = job_detail.find('a', {'class': 'nowrap job-title'}).text.strip()
+                job_career = job_detail.find('div', {'class': 'job-stat-info'}).text.strip().split(' / ')
                 
-                for job_detail in content.find_all('div', {'class': 'job-detail'}):
-                    job_data = company_data.copy()
-                    job_data['job_id'] = job_detail.find('a', {'class': 'nowrap job-title'})['href'].split('/')[2]
-                    job_data['job_title'] = job_detail.find('a', {'class': 'nowrap job-title'}).text.strip()
-                    job_data['job_career'] = job_detail.find('div', {'class': 'job-stat-info'}).text.strip().split(' / ')
-                    job_data['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-                    job_data['crawl_domain'] = 'www.rocketpunch.com'
-                    data_list.append(job_data)
+                job_data = {
+                    'company_id': company_id,
+                    'company_name': company_name,
+                    'description': description,
+                    'job_id': job_id,
+                    'job_title': job_title,
+                    'job_career': job_career,
+                    'timestamp': current_timestamp,
+                    'crawl_domain': 'www.rocketpunch.com'
+                }
+                
+                data_list.append(job_data)
         # export log
         utils.log("parsed_page module succeeded", flag=4) # info
     except Exception as e:
@@ -74,21 +88,22 @@ def parse_job_page(data, headers):
             # 채용 시작일/만료일 : date_start, date_end
             job_date = soup.find('div', class_='job-dates')
             date_span = job_date.find_all('span') if job_date else []
-            only_date_span = re.sub(pattern, '', date_span)
+            only_date_span = [re.sub(pattern, '', span.text) for span in date_span]
+            job['date_end'] = only_date_span[0].strip()
+            job['date_start'] = only_date_span[1].strip()
             
-            valid_date = []
+            # valid_date = []
             
-            for mmdd in only_date_span:
-                if mmdd == "" :
-                    valid_date.append(mmdd)
-                else:
-                    mmdd = mmdd.strip()
-                    date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd}', '%Y/%m/%d')
-                    formatted_date = date_obj.strftime('%Y.%m.%d')
-                    valid_date.append(formatted_date)
+            # for mmdd in only_date_span:
+            #     if mmdd == "" :
+            #         valid_date.append(mmdd)
+            #     else:
+            #         date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd.strip()}', '%Y/%m/%d')
+            #         formatted_date = date_obj.strftime('%Y.%m.%d')
+            #         valid_date.append(formatted_date)
                 
-            job['date_end'] = valid_date[0]
-            job['date_start'] = valid_date[1]
+            # job['date_end'] = valid_date[0]
+            # job['date_start'] = valid_date[1]
             
             # 주요 업무(업무 내용) : job_task
             job_task_div = soup.find('div', class_='duty break')
@@ -114,9 +129,9 @@ def parse_job_page(data, headers):
             industry_text = [a.text for a in industry_div.find_all('a')] if industry_div else []
             job['job_industry'] = ', '.join(industry_text)
         # export log
-        utils.log("parse_page module succeeded",flag=4) # info
+        utils.log("parse_job_page module succeeded",flag=4) # info
     except Exception as e:
-        utils.log(f"parse_page module failed : {e}",flag=1) # error
+        utils.log(f"parse_job_page module failed : {e}",flag=1) # error
         
     return data
 
