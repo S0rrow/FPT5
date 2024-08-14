@@ -63,14 +63,32 @@ def parse_page(soup):
 # company_id를 통해서 html 내용 파싱
 def parse_job_page(data, headers):
     job_url = 'https://www.rocketpunch.com/jobs/{}'
-    pattern = re.compile('수시|상시')
+    pattern = re.compile('[ㄱ-힣]+')
+    current_year = datetime.datetime.now().year
     
     try:
         for job in data:
-            #print(job)
             res = session.get(job_url.format(job['job_id']), headers=headers)
             soup = BS(res.text, 'html.parser')
-            #print(soup)
+            
+            # 채용 시작일/만료일 : date_start, date_end
+            job_date = soup.find('div', class_='job-dates')
+            date_span = job_date.find_all('span') if job_date else []
+            only_date_span = re.sub(pattern, '', date_span)
+            
+            valid_date = []
+            
+            for mmdd in only_date_span:
+                if mmdd == "" :
+                    valid_date.append(mmdd)
+                else:
+                    mmdd = mmdd.strip()
+                    date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd}', '%Y/%m/%d')
+                    formatted_date = date_obj.strftime('%Y.%m.%d')
+                    valid_date.append(formatted_date)
+                
+            job['date_end'] = valid_date[0]
+            job['date_start'] = valid_date[1]
             
             # 주요 업무(업무 내용) : job_task
             job_task_div = soup.find('div', class_='duty break')
@@ -78,7 +96,6 @@ def parse_job_page(data, headers):
             task_span_short = job_task_div.find('span', class_='short-text') if job_task_div and not task_span_hidden else None
             task_span = task_span_hidden.text if task_span_hidden else (task_span_short.text if task_span_short else "")
             job['job_task'] = task_span.strip() if task_span else ""
-            print(job['job_task'])
             
             # 업무 기술/활동분야 : job_specialties
             specialties_raw = soup.find('div', class_='job-specialties')
@@ -96,22 +113,6 @@ def parse_job_page(data, headers):
             industry_div = soup.find('div', class_='job-company-areas')
             industry_text = [a.text for a in industry_div.find_all('a')] if industry_div else []
             job['job_industry'] = ', '.join(industry_text)
-            
-            # 채용 시작일/만료일 : date_start, date_end
-            job_date = soup.find('div', class_='job-dates')
-            date_span = job_date.find_all('span') if job_date else []
-            
-            # 수시채용, 상시채용 예외처리
-            if any(pattern.search(span.text) for span in date_span):
-                job['date_end'] = datetime.datetime.strptime(date_span[0].text.strip(), '%Y.%m.%d').date()
-                job['date_start'] = None
-            else:
-                if len(date_span) > 1:
-                    job['date_end'] = datetime.datetime.strptime(date_span[0].text.strip(), '%Y.%m.%d').date()
-                    job['date_start'] = datetime.datetime.strptime(date_span[1].text.strip(), '%Y.%m.%d').date()
-                elif len(date_span) == 1:
-                    job['date_end'] = datetime.datetime.strptime(date_span[0].text.strip(), '%Y.%m.%d').date()
-            print(job)
         # export log
         utils.log("parse_page module succeeded",flag=4) # info
     except Exception as e:
