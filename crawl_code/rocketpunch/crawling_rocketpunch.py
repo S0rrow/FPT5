@@ -63,12 +63,14 @@ def parse_page(soup):
 # company_id를 통해서 html 내용 파싱
 def parse_job_page(data, headers):
     job_url = 'https://www.rocketpunch.com/jobs/{}'
-    pattern = re.compile('[ㄱ-ㅎ가-힣]+')
+    pattern = re.compile('수시|상시')
     
     try:
         for job in data:
+            #print(job)
             res = session.get(job_url.format(job['job_id']), headers=headers)
             soup = BS(res.text, 'html.parser')
+            #print(soup)
             
             # 주요 업무(업무 내용) : job_task
             job_task_div = soup.find('div', class_='duty break')
@@ -76,6 +78,7 @@ def parse_job_page(data, headers):
             task_span_short = job_task_div.find('span', class_='short-text') if job_task_div and not task_span_hidden else None
             task_span = task_span_hidden.text if task_span_hidden else (task_span_short.text if task_span_short else "")
             job['job_task'] = task_span.strip() if task_span else ""
+            print(job['job_task'])
             
             # 업무 기술/활동분야 : job_specialties
             specialties_raw = soup.find('div', class_='job-specialties')
@@ -100,7 +103,7 @@ def parse_job_page(data, headers):
             
             # 수시채용, 상시채용 예외처리
             if any(pattern.search(span.text) for span in date_span):
-                job['date_end'] = datetime.datetime.now().strftime('%Y-%m-%d')
+                job['date_end'] = datetime.datetime.strptime(date_span[0].text.strip(), '%Y.%m.%d').date()
                 job['date_start'] = None
             else:
                 if len(date_span) > 1:
@@ -108,9 +111,12 @@ def parse_job_page(data, headers):
                     job['date_start'] = datetime.datetime.strptime(date_span[1].text.strip(), '%Y.%m.%d').date()
                 elif len(date_span) == 1:
                     job['date_end'] = datetime.datetime.strptime(date_span[0].text.strip(), '%Y.%m.%d').date()
+            print(job)
         # export log
         utils.log("parse_page module succeeded",flag=4) # info
     except Exception as e:
         utils.log(f"parse_page module failed : {e}",flag=1) # error
         
     return data
+
+session.close()
