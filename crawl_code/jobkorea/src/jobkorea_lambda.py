@@ -75,9 +75,10 @@ class jobkorea:
                 del soup
             #else:
                 #log(f"{target_url} error",4)
-            
+        base_url = 'https://www.jobkorea.co.kr/Recruit/GI_Read/'
         for job_id in self.all_dict:
             self.all_dict[job_id]['job_id'] = job_id
+            self.all_dict[job_id]['target_url'] = base_url + job_id
             self.post_swipgegiread(job_id)  
 
                 
