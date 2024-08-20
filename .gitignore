@@ -12,4 +12,12 @@ logs
 
 # directories that need to be ignored
 programmers_data/
+downloaded_files/
+latest_logs/
+
+# directories need to be ignored from linkedin crawler
+crawl_code/linkedin/downloaded_files/
+crawl_code/linkedin/latest_logs/
+crawl_code/linkedin/logs/
+
 crawl_code/jobkorea/findAPI/
