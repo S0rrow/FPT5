@@ -1,8 +1,20 @@
-import subprocess, os
+import json, os, requests
 from time import gmtime, strftime
+import streamlit as st
+import pandas as pd
+
+@st.cache_data
+def get_dataframe(url:str, query:str)->pd.DataFrame:
+    logger = Logger()
+    try:
+        query_result = json.loads(requests.post(url, data=json.dumps({"query":f"{query}"})).text)
+        df = pd.DataFrame(query_result)
+        return df
+    except Exception as e:
+        logger.log(f"Exception occurred during api call: {e}", 1)
+        return None
 
 class Logger():
-    
     path = None
 
     def __init__(self, path="./logs"):
