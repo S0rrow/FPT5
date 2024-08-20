@@ -2,22 +2,23 @@ from datetime import datetime
 import pandas as pd
 from bs4 import BeautifulSoup as BS
 import awswrangler as wr
-import requests, json, boto3
-import requests, json, time
+import requests, json
 
 
-def company_code():
-    # 기업 크롤링
+def company_code(payload):
+    company_id_url = payload.get('company_id_url')
+    page_url = company_id_url + "?page={index}"
+
     url = "https://career.programmers.co.kr/companies"
-    r = requests.get(url, timeout=5)
+    r = requests.get(company_id_url, timeout=5)
     bs = BS(r.text)
-    # 마지막 페이지 추출
-    pages = int(bs.find_all('li', class_="page-item")[-2].text)
+    # 마지막 페이지 숫자 추출
+    pages = int(bs.find_all('li', class_="page-item")[-2].text) + 1
 
     # 모든 페이지 기업코드 추출
     hrefs = []
-    for i in range(pages):
-        url = f"https://career.programmers.co.kr/companies?page={i+1}"
+    for i in range(1, pages):
+        url = page_url.format(index=i)
         r = requests.get(url, timeout=5)
         bs = BS(r.text)
         
@@ -29,38 +30,23 @@ def company_code():
     company_num = [a.split('/')[-1] for a in hrefs]
     return company_num
 
-def get_tagtable():
-    '''
-    api를 통해 jobCategoryIds 컬럼과 메칭할 jobCategorytag 테이블 생성
-    pd.DataFrame() 반환
-    '''
-    url = "https://career.programmers.co.kr/api/job_positions/job_categories"
-    r = requests.get(url, timeout=5)
-
-    tagid=[]
-    tagname=[]
-    for tag in r.json():
-        tagid.append(tag['id'])
-        tagname.append(tag['name'])
-    r.close()
-    return pd.DataFrame({'tagid':tagid, 'tagname':tagname})
-
-def job_id():
-    company_number = company_code()
+def job_id(payload):
+    company_info_url = payload.get('company_info_url')
+    company_number = company_code(payload=payload)
     jobid=[]
     for num in company_number:
-        company_url = f"https://career.programmers.co.kr/api/companies/{num}"
+        company_url = company_info_url.format(num=num)
         r = requests.get(company_url, timeout=5)
         jobdata = json.loads(r.text)
         r.close()
         jobpositions = jobdata['company']['jobPositions']
         for job in jobpositions:
             jobid.append(job['id'])
-        #time.sleep(0.1)
     return jobid
 
-def makedf():
-    jobid = job_id()
+def makedf(payload):
+    job_detail_url = payload.get('job_detail_url')
+    jobid = job_id(payload=payload)
 
     jobcode=[]
     address=[]
@@ -86,7 +72,7 @@ def makedf():
     companyname=[]
 
     for i in jobid:
-        job_url = f"https://career.programmers.co.kr/api/job_positions/{i}"
+        job_url = job_detail_url.format(index=i)
         jobr = requests.get(job_url, timeout=5)
         jobbs = json.loads(jobr.text)
         jobr.close()
@@ -114,7 +100,7 @@ def makedf():
             companyId.append(jobbs['jobPosition']['companyId'])
             companyname.append(jobbs['jobPosition']['company']['name'])
         except: continue
-        #time.sleep(0.1)
+
     df = pd.DataFrame({'jobcode':jobcode, 
                         'career':career, 
                         'careerRange':careerRange, 
@@ -140,13 +126,13 @@ def makedf():
     return df
 
 def lambda_handler(event, context):
-    crawl_time = datetime.now().strftime("%Y-%m-%d_%H%M") 
-    directory = './programmers_data/'
-    #file_path = f"{directory}programmers{crawl_time}.json" #s3://crawl-data-lake/programmers/data/
+    crawl_time = datetime.now().strftime("%Y-%m-%d_%H%M")
+    payload_data = event.get('data', {})
+    s3_path = payload_data.get('s3_path')
     
     try:
-        df = makedf()
-        wr.s3.to_json(df=df, path=f"s3://crawl-data-lake/programmers/data/{crawl_time}.json", orient='records', lines=True, force_ascii=False, date_format='iso')
+        df = makedf(payload = payload_data)
+        wr.s3.to_json(df=df, path=s3_path.format(crawl_time=crawl_time), orient='records', lines=True, force_ascii=False, date_format='iso')
         return {"statusCode": 200, "body": "Data processed successfully"}
     except Exception as e:
        return {"statusCode": 500, "body": f"Error loading offset: {str(e)} "}
