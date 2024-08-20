@@ -39,7 +39,6 @@ def parse_page(soup):
     current_timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     
     try:
-        
         companies = soup.find_all('div', {'class': 'company item'})
         
         for company in companies:
@@ -84,33 +83,36 @@ def parse_job_page(data, headers):
         for job in data:
             res = session.get(job_url.format(job['job_id']), headers=headers)
             soup = BS(res.text, 'html.parser')
+            job['job_url'] = job_url.format(job['job_id'])
             
             # 채용 시작일/만료일 : date_start, date_end
             job_date = soup.find('div', class_='job-dates')
             date_span = job_date.find_all('span') if job_date else []
             only_date_span = [re.sub(pattern, '', span.text) for span in date_span]
-            job['date_end'] = only_date_span[0].strip()
-            job['date_start'] = only_date_span[1].strip()
             
-            # valid_date = []
-            
-            # for mmdd in only_date_span:
-            #     if mmdd == "" :
-            #         valid_date.append(mmdd)
-            #     else:
-            #         date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd.strip()}', '%Y/%m/%d')
-            #         formatted_date = date_obj.strftime('%Y.%m.%d')
-            #         valid_date.append(formatted_date)
+            valid_date = []
+            for mmdd in only_date_span:
+                mmdd = mmdd.strip()
+                if mmdd == "" :
+                    valid_date.append('Null')
+                else:
+                    date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd.strip()}', '%Y/%m/%d')
+                    formatted_date = date_obj.strftime('%Y.%m.%d')
+                    valid_date.append(formatted_date)
                 
-            # job['date_end'] = valid_date[0]
-            # job['date_start'] = valid_date[1]
+            job['date_end'] = valid_date[0]
+            job['date_start'] = valid_date[-1]
             
             # 주요 업무(업무 내용) : job_task
             job_task_div = soup.find('div', class_='duty break')
             task_span_hidden = job_task_div.find('span', class_='hide full-text') if job_task_div else None
             task_span_short = job_task_div.find('span', class_='short-text') if job_task_div and not task_span_hidden else None
-            task_span = task_span_hidden.text if task_span_hidden else (task_span_short.text if task_span_short else "")
-            job['job_task'] = task_span.strip() if task_span else ""
+            task_span = task_span_short if task_span_short else task_span_hidden
+            if task_span == None:
+                task_span = job_task_div.get_text(strip=True)
+                job['job_task'] = task_span
+            else:
+                job['job_task'] = task_span.get_text(strip=True) if task_span else ""
             
             # 업무 기술/활동분야 : job_specialties
             specialties_raw = soup.find('div', class_='job-specialties')
@@ -121,8 +123,12 @@ def parse_job_page(data, headers):
             detail_div = soup.find('div', class_='content break')
             detail_span_hidden = detail_div.find('span', class_='hide full-text') if detail_div else None
             detail_span_short = detail_div.find('span', class_='short-text') if detail_div and not detail_span_hidden else None
-            detail_span = detail_span_hidden.text if detail_span_hidden else (detail_span_short.text if detail_span_short else "")
-            job['job_detail'] = detail_span.strip() if detail_span else ""
+            detail_span = detail_span_short if detail_span_short else detail_span_hidden
+            if detail_span == None:
+                detail_span = detail_div.get_text(strip=True)
+                job['job_detail'] = detail_span
+            else:
+                job['job_detail'] = detail_span.get_text(strip=True) if task_span else ""
             
             # 산업 분야 : job_industry
             industry_div = soup.find('div', class_='job-company-areas')

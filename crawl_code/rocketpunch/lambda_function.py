@@ -29,7 +29,7 @@ def rocketpunch_crawler(url, headers):
         soup = BS(res['data']['template'], 'html.parser')
         data.extend(parse_page(soup))
         #parse_job_page(data, headers)
-        time.sleep(2) # for sake of politeness
+        time.sleep(1) # for sake of politeness
     
     return data 
 
@@ -41,22 +41,35 @@ company_id, company_name, job_id, description, job_title, job_career
 '''
 def parse_page(soup):
     data_list = []
-    for company in soup.find_all('div', {'class': 'company item'}):
-        company_data = {}
-        company_data['company_id'] = company['data-company_id']
-        for content in company.find_all('div', {'class': 'content'}):
-            company_data['company_name'] = content.find('a', {'class': 'company-name nowrap header name'}).text.strip()
-            company_data['description'] = content.find('div', {'class': 'description'}).text.strip()
+    current_timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+    
+    companies = soup.find_all('div', {'class': 'company item'})
+    
+    for company in companies:
+        company_id = company['data-company_id']
+        content = company.find('div', {'class': 'content'})
+        company_name = content.find('a', {'class': 'company-name nowrap header name'}).text.strip()
+        description = content.find('div', {'class': 'description'}).text.strip()
+        
+        job_details = content.find_all('div', {'class': 'job-detail'})
+        
+        for job_detail in job_details:
+            job_id = job_detail.find('a', {'class': 'nowrap job-title'})['href'].split('/')[2]
+            job_title = job_detail.find('a', {'class': 'nowrap job-title'}).text.strip()
+            job_career = job_detail.find('div', {'class': 'job-stat-info'}).text.strip().split(' / ')
             
-            for job_detail in content.find_all('div', {'class': 'job-detail'}):
-                job_data = company_data.copy()
-                job_data['job_id'] = job_detail.find('a', {'class': 'nowrap job-title'})['href'].split('/')[2]
-                job_data['job_title'] = job_detail.find('a', {'class': 'nowrap job-title'}).text.strip()
-                job_data['job_career'] = job_detail.find('div', {'class': 'job-stat-info'}).text.strip().split(' / ')
-                job_data['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-                job_data['crawl_domain'] = 'www.rocketpunch.com'
-                data_list.append(job_data)
-  
+            job_data = {
+                'company_id': company_id,
+                'company_name': company_name,
+                'description': description,
+                'job_id': job_id,
+                'job_title': job_title,
+                'job_career': job_career,
+                'timestamp': current_timestamp,
+                'crawl_domain': 'www.rocketpunch.com'
+            }
+            
+            data_list.append(job_data)
     return data_list
 
 '''
@@ -73,32 +86,36 @@ def parse_job_page(data, headers):
     for job in data:
         res = session.get(job_url.format(job['job_id']), headers=headers)
         soup = BS(res.text, 'html.parser')
+        job['job_url'] = job_url.format(job['job_id'])
         
         # 채용 시작일/만료일 : date_start, date_end
         job_date = soup.find('div', class_='job-dates')
         date_span = job_date.find_all('span') if job_date else []
-        only_date_span = re.sub(pattern, '', date_span)
+        only_date_span = [re.sub(pattern, '', span.text) for span in date_span]
         
         valid_date = []
-        
         for mmdd in only_date_span:
+            mmdd = mmdd.strip()
             if mmdd == "" :
-                valid_date.append(mmdd)
+                valid_date.append('Null')
             else:
-                mmdd = mmdd.strip()
-                date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd}', '%Y/%m/%d')
+                date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd.strip()}', '%Y/%m/%d')
                 formatted_date = date_obj.strftime('%Y.%m.%d')
                 valid_date.append(formatted_date)
-            
+                
         job['date_end'] = valid_date[0]
-        job['date_start'] = valid_date[1]
+        job['date_start'] = valid_date[-1]
         
         # 주요 업무(업무 내용) : job_task
         job_task_div = soup.find('div', class_='duty break')
         task_span_hidden = job_task_div.find('span', class_='hide full-text') if job_task_div else None
         task_span_short = job_task_div.find('span', class_='short-text') if job_task_div and not task_span_hidden else None
-        task_span = task_span_hidden.text if task_span_hidden else (task_span_short.text if task_span_short else "")
-        job['job_task'] = task_span.strip() if task_span else ""
+        task_span = task_span_short if task_span_short else task_span_hidden
+        if task_span == None:
+            task_span = job_task_div.get_text(strip=True)
+            job['job_task'] = task_span
+        else:
+            job['job_task'] = task_span.get_text(strip=True) if task_span else ""
         
         # 업무 기술/활동분야 : job_specialties
         specialties_raw = soup.find('div', class_='job-specialties')
@@ -109,9 +126,13 @@ def parse_job_page(data, headers):
         detail_div = soup.find('div', class_='content break')
         detail_span_hidden = detail_div.find('span', class_='hide full-text') if detail_div else None
         detail_span_short = detail_div.find('span', class_='short-text') if detail_div and not detail_span_hidden else None
-        detail_span = detail_span_hidden.text if detail_span_hidden else (detail_span_short.text if detail_span_short else "")
-        job['job_detail'] = detail_span.strip() if detail_span else ""
-        
+        detail_span = detail_span_short if detail_span_short else detail_span_hidden
+        if detail_span == None:
+            detail_span = detail_div.get_text(strip=True)
+            job['job_detail'] = detail_span
+        else:
+            job['job_detail'] = detail_span.get_text(strip=True) if task_span else ""
+            
         # 산업 분야 : job_industry
         industry_div = soup.find('div', class_='job-company-areas')
         industry_text = [a.text for a in industry_div.find_all('a')] if industry_div else []
@@ -121,7 +142,7 @@ def parse_job_page(data, headers):
 
 def lambda_handler(event, context):
     directory = './rocketpunch_data/'
-    crawl_time = datetime.now().strftime("%Y-%m-%d_%H%M")
+    crawl_time = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36'
     }

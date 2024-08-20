@@ -1,5 +1,7 @@
 import crawling_rocketpunch as cr
 import save_json as sj
+import pandas as pd
+import datetime as dt
 
 def main():
     headers = {
@@ -9,7 +11,18 @@ def main():
     
     data_dic = cr.rocketpunch_crawler(url, headers)
     detailed_data = cr.parse_job_page(data_dic, headers)
-    sj.save_dataframe(detailed_data)
+    
+    mm = dt.datetime.today().year
+    dd = dt.datetime.today().month
+    
+    new_hired = []
+    for data in detailed_data :
+        year, month, day = data['date_start'].split('.')
+        if month == mm and day == dd:
+            new_hired.append(data)
+    
+    #sj.save_dataframe(detailed_data)
+    sj.save_dataframe(new_hired)
     
 if __name__=="__main__":
     main()
