@@ -1,50 +1,65 @@
-import altair as alt
+import os, json
 import streamlit as st
-import pandas as pd
-import json
-from urllib.error import URLError
+from streamlit_navigation_bar import st_navbar
+from streamlit_google_auth import Authenticate
+from utils import Logger
+import pages as pg
+from time import strftime, gmtime
 
-with open("./config.json", "r") as f:
-    secret = json.load(f)
-
-@st.cache_data
-def get_UN_data():
-    AWS_BUCKET_URL = "https://streamlit-demo-data.s3-us-west-2.amazonaws.com"
-    df = pd.read_csv(AWS_BUCKET_URL + "/agri.csv.gz")
-    return df.set_index("Region")
-
+# init
+flag = -1
+parent_path = os.path.dirname(os.path.abspath(__file__))
+logger = Logger()
 try:
-    df = get_UN_data()
-    countries = st.multiselect(
-        "Choose countries", list(df.index), ["United States of America"]
+    flag = 0
+    st.set_page_config(
+        page_title="TechMap IT",
+        layout='wide',
+        page_icon=":shark:",
+        initial_sidebar_state="auto",
+        menu_items=None
     )
-    if not countries:
-        st.error("Please select at least one country.")
-    else:
-        data = df.loc[countries]
-        data /= 1000000.0
-        st.write("### Gross Agricultural Production ($B)", data.sort_index())
 
-        data = data.T.reset_index()
-        data = pd.melt(data, id_vars=["index"]).rename(
-            columns={"index": "year", "value": "Gross Agricultural Product ($B)"}
-        )
-        chart = (
-            alt.Chart(data)
-            .mark_area(opacity=0.3)
-            .encode(
-                x="year:T",
-                y=alt.Y("Gross Agricultural Product ($B):Q", stack=None),
-                color="Region:N",
-            )
-        )
-        st.altair_chart(chart, use_container_width=True)
-        
-except URLError as e:
-    st.error(
-        """
-        **This demo requires internet access.**
-        Connection error: %s
-    """
-        % e.reason
+    # navigation bar
+    flag = 1
+    pages = []
+    if st.session_state.get('connected', False):
+        pages = ['Home','Job Informations', 'User Information']
+    else:
+        pages = ['Home','Job Informations', 'Login']
+    logger.log(f"flag #{flag} | pages:{pages}", 0)
+
+    flag = 2
+    logo_path = f"{parent_path}/logo.png"
+    page = st_navbar(
+        pages=pages,
+        # logo_page=logo_path,
+        # options=options
     )
+    st.write(page)
+    # authenticator init
+    flag = 3
+    authenticator = Authenticate(
+        secret_credentials_path = f"{parent_path}/auth.json",
+        cookie_name='oauth_connectivity',
+        cookie_key=f'{strftime("%Y%m%d%H%M%S", gmtime())}',
+        redirect_uri = 'http://localhost:8501',
+    )
+    authenticator.check_authentification()
+
+    # call page functions
+    flag = 4
+    functions = {
+        "Home": pg.display_home_page,
+        "Job Informations": pg.display_job_informations,
+        "User Information": pg.display_user_information,
+        "Login": pg.display_login_page
+    }
+    logger.log(f"flag #{flag} | page:{page}", 0)
+    loc = functions.get(page)
+    flag = 5
+    if loc:
+        logger.log(f"flag #{flag} | function called.", 0)
+        loc(logger, authenticator)
+except Exception as e:
+    logger.log(f"Exception occurred at flag #{flag}: {e}", 1)

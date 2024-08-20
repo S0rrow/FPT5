@@ -38,7 +38,7 @@ class PageController():
             st.header("Job Informations")
             st.subheader("query result from API")
             st.dataframe(df, use_container_width=True)
-        
+
 class SidebarController():
     logger = None
     authenticator = None

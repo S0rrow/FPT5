@@ -14,8 +14,8 @@ authenticator = Authenticate(
 authenticator.check_authentification()
 
 # Create the login button in the sidebar
-with st.sidebar:
-    authenticator.login(color="white")
+#with st.sidebar:
+authenticator.login(color="white")
 
 if st.session_state.get('connected', False):
     st.image(st.session_state['user_info'].get('picture'))

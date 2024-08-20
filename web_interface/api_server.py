@@ -1,9 +1,11 @@
-import json
+import os, json
 from fastapi import FastAPI
 from pydantic import BaseModel
 import pandas as pd
 from sqlalchemy import create_engine
 
+parent_path = os.path.dirname(os.path.abspath(__file__))
+config_path = f"{parent_path}/config.json"
 app = FastAPI()
 
 class QueryCall(BaseModel):

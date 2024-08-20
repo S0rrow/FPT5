@@ -22,8 +22,13 @@ class Logger():
         
     def log(self, msg, flag=None, path="./logs"):
         '''
-            print message strings to given level of depth.
-            flag value determines the level, where 0 = debug, 1 = error, 2 = warn, 3 = status, 4 = info.
+            print message strings to files of given level of depth.
+            - flag : level
+            - 0 : debug
+            - 1 : error
+            - 2 : warn
+            - 3 : status
+            - 4 : info
         '''
         if flag is None:
             flag = 4

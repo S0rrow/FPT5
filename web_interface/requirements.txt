@@ -3,9 +3,11 @@ fastapi[standard]
 streamlit
 streamlit-authenticator
 streamlit-google-auth
+streamlit-navigation-bar
 pandas
 pydantic
-#google-auth
+sqlalchemy
+# google-auth
 # google-api-python-client
 # google-auth-httplib2
 # google-auth-oauthlib
