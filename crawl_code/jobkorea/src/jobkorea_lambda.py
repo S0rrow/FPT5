@@ -1,23 +1,15 @@
-import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
-import subprocess, os
 from time import gmtime, strftime
-import re
 import time
 import pandas as pd
 import awswrangler as wr
-import boto3
-import subprocess, os
-from time import gmtime, strftime
-
+import requests, re
 
 
 def get_time():
     return strftime("%Y-%m-%d_%H%M%S", gmtime())
 
 def lambda_handler(event, context):
-    s3 = boto3.client('s3')
     try:
         bucket_name = 'crawl-data-lake'
         instance = jobkorea()
@@ -31,7 +23,6 @@ def lambda_handler(event, context):
         return {"statusCode": 500, "body": f"Error: {str(e)} "}
     else:
         return {"statusCode": 200, "body": "Data processed successfully"}
-
 
 
 class jobkorea:
