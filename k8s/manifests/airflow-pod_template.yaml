@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: airflow-worker
+  namespace: airflow
+spec:
+  containers:
+    - name: base
+      image: apache/airflow:2.9.3
+      volumeMounts:
+        - name: airflow-worker-pvc
+          mountPath: /mnt/data/airflow
+  volumes:
+    - name: airflow-worker-pvc
+      persistentVolumeClaim:
+        claimName: airflow-worker-pvc
