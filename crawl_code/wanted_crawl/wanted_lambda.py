@@ -27,7 +27,8 @@ def get_detail(url, curr_t, position_id):
             "tasks": detail["detail"]["main_tasks"],
             "requirements": detail["detail"]["requirements"],
             "prefer": detail["detail"]["preferred_points"],
-            "company_id": detail["company"]["id"]
+            "company_id": detail["company"]["id"],
+            "company_name": detail["company"]["name"]
         }
         return p
     except Exception as e:
@@ -59,7 +60,7 @@ def lambda_handler(event, context):
         try:
             curr_date = datetime.now()
             export_date = curr_date.strftime("%Y-%m-%d_%H%M%S")
-            new_order = ['position', 'tasks', 'requirements', 'prefer', 'due_date', 'job_id', 'company_id', 'crawl_domain', 'get_date']
+            new_order = ['position', 'tasks', 'requirements', 'prefer', 'due_date', 'job_id', 'company_id', 'company_name', 'crawl_domain', 'get_date']
     
             df = pd.DataFrame(data)
             df['crawl_domain'] = "www.wanted.co.kr"
