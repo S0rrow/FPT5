@@ -3,35 +3,36 @@ from time import gmtime, strftime
 import streamlit as st
 import pandas as pd
 
-@st.cache_data
-def get_dataframe(url:str, query:str)->pd.DataFrame:
-    logger = Logger()
-    try:
-        query_result = json.loads(requests.post(url, data=json.dumps({"query":f"{query}"})).text)
-        df = pd.DataFrame(query_result)
-        return df
-    except Exception as e:
-        logger.log(f"Exception occurred during api call: {e}", 1)
-        return None
-
 class Logger():
+    '''
+        Logger for generating log messages given in string format to files under given path.
+        - path: location directory of log files to be generated at
+        - options: logger options getting inputs in dictionary format
+            - name(optional): name of source logger is running at. if not set, will call __name__ variable of utils.py
+    '''
     path = None
+    options = None
 
-    def __init__(self, path="./logs"):
+    def __init__(self, options:dict=None, path="./logs"):
         self.path = path
-        
-    def log(self, msg, flag=None, path="./logs"):
+        self.options = options
+
+    def log(self, msg:str, flag:int=None, name:str=__name__):
         '''
-            print message strings to files of given level of depth.
-            - flag : level
-            - 0 : debug
-            - 1 : error
-            - 2 : warn
-            - 3 : status
-            - 4 : info
+            Save given log messages according to level of depth as files.
+            - flag: logs being printed will be saved according to level of depth given in flag
+                - 0: debug
+                - 1: error
+                - 2: warn
+                - 3: status
+                - 4: info
+            - name(optional): name of source logger is running at. if not set, will call __name__ variable of utils.py
         '''
-        if flag is None:
-            flag = 4
+        options = self.options
+        if not name and options.get('name', False):
+            name = options.get('name')
+        if not flag:
+            flag = 0
         head = ["DEBUG", "ERROR", "WARN", "STATUS", "INFO"]
         now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
@@ -41,10 +42,10 @@ class Logger():
         msg.replace("\n", " ")
         msg.replace("  ", " ")
         log_file = f"{self.path}/{head[flag]}.log"
-        log_message = f"[{now}][{head[flag]}] > {msg}\n"
+        if not name:
+            log_message = f"[{now}][{head[flag]}]({__name__}) > {msg}\n"
+        else:
+            log_message = f"[{now}][{head[flag]}]({name}) > {msg}\n"
         
         with open(log_file, "a") as f:
             f.write(log_message)
-
-    def get_time(self):
-        return strftime("%Y-%m-%d_%H%M%S", gmtime())
