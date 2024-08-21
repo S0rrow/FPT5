@@ -20,4 +20,6 @@ crawl_code/linkedin/downloaded_files/
 crawl_code/linkedin/latest_logs/
 crawl_code/linkedin/logs/
 
+# directories need to be ignored from jobkorea crawler
 crawl_code/jobkorea/findAPI/
+
