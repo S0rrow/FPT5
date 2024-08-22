@@ -5,16 +5,26 @@ from utils import Logger
 import views
 from time import strftime, gmtime
 
-def on_click_home():
+### Button Callback Functions
+
+# Home button
+def on_click_home(logger:Logger):
+    logger.log(f"home button clicked; session state current view changed to home", name=__name__)
     st.session_state['current_view'] = "home"
 
-def on_click_login():
+# Login Button
+def on_click_login(logger:Logger):
+    logger.log(f"login button clicked; session state current view changed to login", name=__name__)
     st.session_state['current_view'] = "login"
     
-def on_click_user_info():
+# User Information Button
+def on_click_user_info(logger:Logger):
+    logger.log(f"user_info button clicked; session state current view changed to user_information", name=__name__)
     st.session_state['current_view'] = "user_information"
 
-def on_click_job_info():
+# Job Informations Button
+def on_click_job_info(logger:Logger):
+    logger.log(f"job_info button clicked; session state current view changed to job_informations", name=__name__)
     st.session_state['current_view'] = "job_informations"
 
 
@@ -24,24 +34,29 @@ def main():
     parent_path = os.path.dirname(os.path.abspath(__file__))
     logger = Logger(options={"name":__name__})
     st.logo(f"{parent_path}/images/horizontal.png", icon_image=f"{parent_path}/images/logo.png")
+    
     try:
         ### page configuration ###
         flag = 0
         st.set_page_config(
-            page_title="TechMap IT",
+            page_title="Tech Map IT",
             layout='centered', # 'centered' or 'wide'
-            page_icon=":shark:",
+            page_icon=f"{parent_path}/images/logo.png",
             initial_sidebar_state="auto"
         )
-        if st.session_state.get('current_view', False):
-            if st.session_state.get('connected', False):
-                st.session_state['current_view'] = "job_informations"
-        else:
-            st.session_state['current_view'] = "home"
-        logger.log(f"flag #{flag} | page config loaded")
+        logger.log(f"flag #{flag} | page config loaded", name=__name__)
         
-        # authenticator init
+        
+        ### current_view init
         flag = 1
+        # if no session_state.current_view exists
+        if not st.session_state.get('current_view', False):
+            st.session_state['current_view'] = "home"
+        logger.log(f"flag #{flag} | current_view initial config loaded; current_view:{st.session_state.get('current_view')}", name=__name__)
+        
+        
+        ### authenticator init
+        flag = 2
         authenticator = Authenticate(
             secret_credentials_path = f"{parent_path}/auth.json",
             cookie_name='oauth_connectivity',
@@ -49,23 +64,31 @@ def main():
             redirect_uri = 'http://localhost:8501',
         )
         authenticator.check_authentification()
-        logger.log(f"flag #{flag} | authenticator loaded")
+        logger.log(f"flag #{flag} | authenticator loaded", name=__name__)
+        
         
         ### sidebar configuration
-        st.Page(on_click_home,title="Home2",icon=":material/home:")
-        
-        flag = 2
+        flag = 3
         with st.sidebar:
             if not st.session_state.get('connected', False):
-                st.button("Home", on_click=on_click_home)
-                st.button("Login", on_click=on_click_login)
+                st.write("Home")
+                st.button("Home :material/home:", on_click=on_click_home, kwargs={"logger":logger}, use_container_width=True)
+                st.write("Dashboard")
+                st.button("Job Informations :material/search:", on_click=on_click_job_info, kwargs={"logger":logger}, use_container_width=True)
+                st.write("Account")
+                st.button("Login :material/login:", on_click=on_click_login, kwargs={"logger":logger}, use_container_width=True)
             else:
-                st.button("Job Informations", on_click=on_click_job_info)
-                st.button("User Information", on_click=on_click_user_info)
-        logger.log(f"flag #{flag} | sidebar loaded")
+                st.write("Home")
+                st.button("Home :material/home:", on_click=on_click_home, kwargs={"logger":logger}, use_container_width=True)
+                st.write("Dashboard")
+                st.button("Job Informations :material/search:", on_click=on_click_job_info, kwargs={"logger":logger}, use_container_width=True)
+                st.write("Account")
+                st.button("User Information :material/person:", on_click=on_click_user_info, kwargs={"logger":logger}, use_container_width=True)
+        logger.log(f"flag #{flag} | sidebar loaded", name=__name__)
+        
         
         ### display page according to current_view
-        flag = 3
+        flag = 4
         if st.session_state.get('current_view') == "home":
             logger.log(f"flag #{flag} | displaying home page", name=__name__)
             views.display_home_page(logger)
@@ -81,11 +104,11 @@ def main():
         if st.session_state.get('current_view') == "user_information":
             logger.log(f"flag #{flag} | displaying user_information page", name=__name__)
             views.display_user_information(logger, authenticator)
-            
-        logger.log(f"flag #{flag} | display functions loaded")
+        logger.log(f"flag #{flag} | display functions loaded", name=__name__)
+    
         
     except Exception as e:
-        logger.log(f"Exception occurred at flag #{flag}: {e}", flag=1)
+        logger.log(f"Exception occurred at flag #{flag}: {e}", flag=1, name=__name__)
         
 if __name__=="__main__":
     main()

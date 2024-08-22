@@ -1,7 +1,5 @@
-import json, os, requests
-from time import gmtime, strftime
-import streamlit as st
-import pandas as pd
+import os, pytz
+from datetime import datetime, timezone, timedelta
 
 class Logger():
     '''
@@ -34,7 +32,9 @@ class Logger():
         if not flag:
             flag = 0
         head = ["DEBUG", "ERROR", "WARN", "STATUS", "INFO"]
-        now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+        utc_now = datetime.now(timezone.utc)
+        kst_now = utc_now + timedelta(hours=9)
+        now = kst_now.strftime("%Y-%m-%d %H:%M:%S")
 
         if not os.path.isdir(self.path):
             os.mkdir(self.path)

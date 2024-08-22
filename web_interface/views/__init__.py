@@ -1,5 +1,4 @@
 from views.home import display_home_page
 from views.job_informations import display_job_informations
-from views.api import get_dataframe
 from views.login import display_login_page
-from views.user_informations import display_user_information
+from views.user_information import display_user_information

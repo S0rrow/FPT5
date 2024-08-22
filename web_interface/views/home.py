@@ -6,7 +6,7 @@ def display_home_page(logger):
     '''
     logger.log(f"rendering home page...", name=__name__)
     try:
-        st.header("Home")
+        st.title("Tech Map IT")
         st.write("""
             # FPT5
 
