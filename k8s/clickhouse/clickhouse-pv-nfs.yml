@@ -1,0 +1,60 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-clickhouse-nfs-com4
+  namespace: clickhouse
+spec:
+  capacity:
+    storage: 80Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /mnt/data/clickhouse
+    server: com4
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: clickhouse
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-clickhouse-nfs-com5
+  namespace: clickhouse
+spec:
+  capacity:
+    storage: 80Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /mnt/data/clickhouse
+    server: com5
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: clickhouse
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clickhouse-pvc-0
+  namespace: clickhouse
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 80Gi
+  volumeName: pv-clickhouse-nfs-com4
+  storageClassName: clickhouse
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clickhouse-pvc-1
+  namespace: clickhouse
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 80Gi
+  volumeName: pv-clickhouse-nfs-com5
+  storageClassName: clickhouse
