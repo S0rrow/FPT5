@@ -5,6 +5,25 @@ import matplotlib.pyplot as plt
 from collections import Counter
 
 @st.cache_data
+def _get_dataframe_test():
+    data = {
+        'job_title': ['Backend Software Engineer', 'Frontend Developer', 'Data Scientist'],
+        'company_name': ['quotabook', 'techcorp', 'datascience inc.'],
+        'country': ['South Korea', 'USA', 'UK'],
+        'salary': [None, '$120k', '$95k'],
+        'remote': [False, True, True],
+        'job_category': ['Backend Engineer', 'Frontend Engineer', 'Data Science'],
+        'stacks': [
+            "['Python', 'Django', 'Docker', 'AWS EKS', 'GitHub Actions', 'Node.js', 'TypeScript', 'ReactJS']",
+            "['JavaScript', 'ReactJS', 'Redux', 'CSS', 'HTML', 'Node.js']",
+            "['Python', 'Pandas', 'NumPy', 'TensorFlow', 'Keras', 'Docker']"
+        ],
+        'required_career': [True, False, True],
+        'domain': ['Tech', 'Tech', 'Data Science']
+    }
+    return pd.DataFrame(data)
+
+@st.cache_data
 def _get_dataframe_(_logger, url:str, database:str, query:str)->pd.DataFrame:
     '''
         Send query as post method to the url, and return query results in pandas dataframe format.
@@ -76,7 +95,8 @@ def display_job_informations(logger, url:str=None, database:str=None, query:str=
         st.title("Job Information - Tech Stack Visualizations")
         st.header("Job Informations")
         data_load_state = st.text('Loading data...')
-        df = _get_dataframe_(logger, url, database, query)
+        #df = _get_dataframe_(logger, url, database, query)
+        df = _get_dataframe_test() # test
         data_load_state.text("Data loaded from st.cached_data")
         if st.checkbox('Show raw data'):
             st.subheader("Raw data")
