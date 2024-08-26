@@ -68,7 +68,7 @@ def display_job_informations(logger:Logger, url:str=None, database:str=None, que
     '''
     try:
         if not url:
-            url = "http://192.168.0.61:8000/query"
+            url = "http://192.168.0.61:8000/test"
         if not query:
             query = f"SELECT * from job_information"
         if not database:
@@ -84,7 +84,7 @@ def display_job_informations(logger:Logger, url:str=None, database:str=None, que
         if st.checkbox('Show raw data'):
             st.subheader("Raw data")
             st.dataframe(df, use_container_width=True)
-        
+
         chart_type = st.selectbox("Select chart type", ("Pie Chart", "Donut Chart", "Bar Chart", "Horizontal Bar Chart", "Histogram"))
         
         # stacks to df
