@@ -8,13 +8,15 @@ import pandas as pd
 import subprocess, os
 from farmhash import FarmHash32 as fhash
 import pytz
+from utils import set_curr_kst_time,set_kst_timezone
 
 import json, boto3, pytz
 
 
+
 def get_time():
     kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
-    return datetime.strftime(datetime.now().astimezone(kst_tz),"%Y-%m-%d_%H%M%S")
+    return str(datetime.strftime(datetime.now().astimezone(kst_tz),"%Y-%m-%d_%H%M%S"))
 
 def lambda_handler(event, context):
     s3 = boto3.client('s3')
@@ -157,21 +159,48 @@ class jobkorea:
         # 주요사업
         result['indurstry_type'] = df['주요사업'].apply(lambda x: x.replace('\\/','/') if x !=None else x) 
         #시작
-        result['start_date'] = df['시작'].apply(lambda x: datetime.strptime('-'.join(list(map(lambda y: re.findall(r'[0-9]+', y)[0],x.split('.')))),'%Y-%m-%d') if x != None else x)
+        result['start_date'] = df['시작'].apply(lambda x: str(int(datetime.strptime('-'.join(list(map(lambda y: re.findall(r'[0-9]+', y)[0],x.split('.')))),'%Y-%m-%d').timestamp())) if x != None else x)
 
         #마감
-        result['end_date'] = df['마감'].apply(lambda x: datetime.strptime('-'.join(list(map(lambda y: re.findall(r'[0-9]+', y)[0],x.split('.')))),'%Y-%m-%d') if x != None else x)
+        result['end_date'] = df['마감'].apply(lambda x: str(int(datetime.strptime('-'.join(list(map(lambda y: re.findall(r'[0-9]+', y)[0],x.split('.')))),'%Y-%m-%d').timestamp())) if x != None else x)
         #경력
 
         result['required_career'] = df['경력'].apply(lambda x: (False if x.find('신입')else True) if x !=None else x)
         result['resume_required'] = df['이력서'].apply(lambda x: False if x==None else True)
-        result['get_date'] = df['get_date']
+        result['get_date'] = df['get_date'].apply(lambda x: int(datetime.strptime(x,"%Y-%m-%d_%H%M%S").timestamp()))
         result['crawl_url']=df['target_url'].str.replace('\\/','/')
         # jobkorea symbol create
         result['site_symbol'] = "JK"
         result['id'] = result.apply(lambda x: fhash(f'{x[13]}{x[2]}{x[1]}'),axis=1)
         del df
         return result
+    
+def get_bucket_metadata(s3_client, pull_bucket_name,target_folder_prefix):
+    # 특정 폴더 내 파일 목록 가져오기
+    response = s3_client.list_objects_v2(Bucket=pull_bucket_name, Prefix=target_folder_prefix, Delimiter='/')
+    curr_date = set_curr_kst_time()
+    kst_tz = set_kst_timezone()
+
+    # curr_date 보다 날짜가 늦은 data josn 파일 metadata 객체 분류
+    if 'Contents' in response:
+        return [obj for obj in response['Contents'] if curr_date <= obj['LastModified'].astimezone(kst_tz).date()]
+    else:
+        #print("No objects found in the folder.")
+        return None
+
+def upload_data(records, key, push_table_name):
+    # DynamoDB 클라이언트 생성
+    records = records.to_dict(orient="records")
+    dynamodb = boto3.resource(
+        'dynamodb',
+        aws_access_key_id=key['aws_access_key_id'],
+        aws_secret_access_key=key['aws_secret_key'],
+        region_name=key['region']
+    )
+    table = dynamodb.Table(push_table_name)
+    for item in records:
+        table.put_item(Item=item)
+    
     
 def main():
 
@@ -193,7 +222,7 @@ def main():
 
     # S3 버킷 정보 init
     pull_bucket_name = bucket_info['pull_bucket_name']
-    push_bucket_name = bucket_info['push']
+    push_table_name = bucket_info['restore_table_name']
     target_folder_prefix = bucket_info['target_folder_prefix']['jobkorea_path']
     # 특정 폴더 내 파일 목록 가져오기
     # TODO: 
@@ -201,20 +230,10 @@ def main():
     # response = s3.list_objects_v2(Bucket=push_bucket_name, Prefix='data/', Delimiter='/')
     kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
 
-    last_date = response['Contents'][0]['LastModified'].astimezone(kst_tz).date()
-    for obj in response['Contents'][1:]:
-        curr = obj['LastModified'].astimezone(kst_tz).date()
-        if last_date <= curr:
-            last_date = curr
-
-    response = s3.list_objects_v2(Bucket=pull_bucket_name, Prefix=target_folder_prefix, Delimiter='/')
-    if 'Contents' in response:
-        target_file_list = [obj for obj in response['Contents'] if last_date < obj['LastModified'].astimezone(kst_tz).date()]
-    else:
-        print("No objects found in the folder.")
+    metadata_list = get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix)
 
     all_data = pd.DataFrame()
-    for obj in target_file_list:
+    for obj in metadata_list:
         try:
             response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
             json_context = response['Body'].read().decode('utf-8')
@@ -225,7 +244,8 @@ def main():
             all_data = pd.concat([all_data,result])
         except Exception as e:
             pass
-        s3.put_object(Body=all_data.to_json(orient='records',lines=True,force_ascii=False,date_format='iso'),Bucket=push_bucket_name,Key=f'data/JK_{get_time()}.json')
+        if len(all_data):
+            upload_data(all_data,key,push_table_name)
 
 if __name__ == "__main__":
     main()
