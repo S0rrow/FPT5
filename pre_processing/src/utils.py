@@ -1,7 +1,7 @@
 import re, datetime, pytz
 
 # 로컬 시간대(UTC+9)로 현재 날짜 설정
-def set_curr_kst_time():
+def get_curr_kst_time():
     return datetime.datetime.now(pytz.timezone('Asia/Seoul')).date()
 
 # kst timezone 설정
