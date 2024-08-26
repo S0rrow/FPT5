@@ -11,18 +11,6 @@ import pytz
 
 import json, boto3, pytz
 
-def log(msg, flag=None, path="./logs"):
-    if flag==None:
-        flag = 0
-    head = ["DEBUG", "ERROR", "WARN", "STATUS", "INFO"]
-    now = strftime("%H:%M:%S", gmtime())
-    
-    if not os.path.isdir(path):
-        os.mkdir(path)
-    
-    if not os.path.isfile(f"{path}/{head[flag]}.log"):
-        assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" > {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
-    else: assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" >> {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
 
 def get_time():
     kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
@@ -205,12 +193,12 @@ def main():
 
     # S3 버킷 정보 init
     pull_bucket_name = bucket_info['pull_bucket_name']
-    push_bucket_name = bucket_info['push_bucket_name']
+    push_bucket_name = bucket_info['push']
     target_folder_prefix = bucket_info['target_folder_prefix']['jobkorea_path']
     # 특정 폴더 내 파일 목록 가져오기
     # TODO: 
     # - 마지막 실행일(년,월,일)을 datetime으로 저장한 파일을 읽어들여 curr_date에 적용하기; 당담: 유정연
-    response = s3.list_objects_v2(Bucket=push_bucket_name, Prefix='data/', Delimiter='/')
+    # response = s3.list_objects_v2(Bucket=push_bucket_name, Prefix='data/', Delimiter='/')
     kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
 
     last_date = response['Contents'][0]['LastModified'].astimezone(kst_tz).date()
