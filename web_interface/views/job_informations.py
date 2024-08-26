@@ -23,9 +23,7 @@ def _get_dataframe_(_logger:Logger, url:str, database:str, query:str)->pd.DataFr
         _logger.log(f"Exception occurred while getting dataframe: {e}", flag=1, name=__name__)
         return None
 
-
 ### charts
-
 def plot_pie_chart(stack_counts):
     fig, ax = plt.subplots()
     ax.pie(stack_counts.values(), labels=stack_counts.keys(), autopct='%1.1f%%', startangle=90)
