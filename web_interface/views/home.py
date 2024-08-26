@@ -1,12 +1,12 @@
 import streamlit as st
-
-def display_home_page(logger):
+from ..utils import Logger
+def display_home_page(logger:Logger):
     '''
     show initial page before login
     '''
     logger.log(f"rendering home page...", name=__name__)
     try:
-        st.title("Tech Map IT")
+        st.title("Tech Map IT | Prototype")
         st.write("""
             # FPT5
 

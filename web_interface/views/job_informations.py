@@ -3,28 +3,10 @@ import pandas as pd
 import json, requests, ast
 import matplotlib.pyplot as plt
 from collections import Counter
+from ..utils import Logger
 
 @st.cache_data
-def _get_dataframe_test():
-    data = {
-        'job_title': ['Backend Software Engineer', 'Frontend Developer', 'Data Scientist'],
-        'company_name': ['quotabook', 'techcorp', 'datascience inc.'],
-        'country': ['South Korea', 'USA', 'UK'],
-        'salary': [None, '$120k', '$95k'],
-        'remote': [False, True, True],
-        'job_category': ['Backend Engineer', 'Frontend Engineer', 'Data Science'],
-        'stacks': [
-            "['Python', 'Django', 'Docker', 'AWS EKS', 'GitHub Actions', 'Node.js', 'TypeScript', 'ReactJS']",
-            "['JavaScript', 'ReactJS', 'Redux', 'CSS', 'HTML', 'Node.js']",
-            "['Python', 'Pandas', 'NumPy', 'TensorFlow', 'Keras', 'Docker']"
-        ],
-        'required_career': [True, False, True],
-        'domain': ['Tech', 'Tech', 'Data Science']
-    }
-    return pd.DataFrame(data)
-
-@st.cache_data
-def _get_dataframe_(_logger, url:str, database:str, query:str)->pd.DataFrame:
+def _get_dataframe_(_logger:Logger, url:str, database:str, query:str)->pd.DataFrame:
     '''
         Send query as post method to the url, and return query results in pandas dataframe format.
         - url: API endpoint
@@ -80,13 +62,13 @@ def plot_horizontal_bar_chart(stack_counts):
 
 ### page display
 
-def display_job_informations(logger, url:str=None, database:str=None, query:str=None):
+def display_job_informations(logger:Logger, url:str=None, database:str=None, query:str=None):
     '''
         display job informations retreived from given url
     '''
     try:
         if not url:
-            url = "http://127.0.0.1:8000/query"
+            url = "http://192.168.0.61:8000/query"
         if not query:
             query = f"SELECT * from job_information"
         if not database:
@@ -95,13 +77,13 @@ def display_job_informations(logger, url:str=None, database:str=None, query:str=
         st.title("Job Information - Tech Stack Visualizations")
         st.header("Job Informations")
         data_load_state = st.text('Loading data...')
-        #df = _get_dataframe_(logger, url, database, query)
-        df = _get_dataframe_test() # test
+        df = _get_dataframe_(logger, url, database, query)
         data_load_state.text("Data loaded from st.cached_data")
+        
+        ### show raw dataframe
         if st.checkbox('Show raw data'):
             st.subheader("Raw data")
             st.dataframe(df, use_container_width=True)
-        
         
         chart_type = st.selectbox("Select chart type", ("Pie Chart", "Donut Chart", "Bar Chart", "Horizontal Bar Chart", "Histogram"))
         

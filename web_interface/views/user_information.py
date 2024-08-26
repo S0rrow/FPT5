@@ -1,7 +1,8 @@
 import streamlit as st
 from streamlit_google_auth import Authenticate
+from ..utils import Logger
 
-def display_user_information(logger, authenticator:Authenticate):
+def display_user_information(logger:Logger, authenticator:Authenticate):
     logger.log(f"rendering user informations page...", name=__name__)
     try:
         authenticator.check_authentification()

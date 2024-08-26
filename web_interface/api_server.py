@@ -14,15 +14,40 @@ class QueryCall(BaseModel):
     database: str
     query : str
 
+@app.post("/test")
+def query(input:QueryCall):
+    logger.log(f"query called on db [{input.database}] for test: {input.query}", name=__name__)
+    try:
+        data = {
+            'job_title': ['Backend Software Engineer', 'Frontend Developer', 'Data Scientist'],
+            'company_name': ['quotabook', 'techcorp', 'datascience inc.'],
+            'country': ['South Korea', 'USA', 'UK'],
+            'salary': [None, '$120k', '$95k'],
+            'remote': [False, True, True],
+            'job_category': ['Backend Engineer', 'Frontend Engineer', 'Data Science'],
+            'stacks': [
+                "['Python', 'Django', 'Docker', 'AWS EKS', 'GitHub Actions', 'Node.js', 'TypeScript', 'ReactJS']",
+                "['JavaScript', 'ReactJS', 'Redux', 'CSS', 'HTML', 'Node.js']",
+                "['Python', 'Pandas', 'NumPy', 'TensorFlow', 'Keras', 'Docker']"
+            ],
+            'required_career': [True, False, True],
+            'domain': ['Tech', 'Tech', 'Data Science']
+        }
+        df = pd.DataFrame(data)
+        serialized_df = df.astype(object).to_dict(orient='records')
+        return serialized_df
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Exception occurred while querying as test: {e}")
+
 @app.post("/query")
 def query(input:QueryCall):
-    logger.log(f"query called on db {input.database}: {input.query}", name=__name__)
+    logger.log(f"query called on db [{input.database}]: {input.query}", name=__name__)
     try:
         df = query_to_dataframe(input.database, input.query)
         serialized_df = df.astype(object).to_dict(orient='records')
         return serialized_df
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Exception occurred while querying from databse: {e}")
+        raise HTTPException(status_code=500, detail=f"Exception occurred while querying from database: {e}")
 
 @app.post("/rds")
 def query(input:QueryCall):
@@ -32,7 +57,7 @@ def query(input:QueryCall):
         serialized_df = df.astype(object).to_dict(orient='records')
         return serialized_df
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Exception occurred while querying from databse: {e}")
+        raise HTTPException(status_code=500, detail=f"Exception occurred while querying from database: {e}")
 
 def load_config(config_path:str='config.json'):
     """return configuration informations from config.json"""

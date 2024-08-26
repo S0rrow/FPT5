@@ -29,7 +29,7 @@ def on_click_job_info(logger:Logger):
 
 
 def main():
-    # init
+    ### initial configurations
     flag = -1
     parent_path = os.path.dirname(os.path.abspath(__file__))
     logger = Logger(options={"name":__name__})
@@ -39,7 +39,7 @@ def main():
         ### page configuration ###
         flag = 0
         st.set_page_config(
-            page_title="Tech Map IT",
+            page_title="Tech Map IT | Prototype",
             layout='centered', # 'centered' or 'wide'
             page_icon=f"{parent_path}/images/logo.png",
             initial_sidebar_state="auto"
@@ -93,17 +93,22 @@ def main():
             logger.log(f"flag #{flag} | displaying home page", name=__name__)
             views.display_home_page(logger)
             
-        if st.session_state.get('current_view') == "login":
+        elif st.session_state.get('current_view') == "login":
             logger.log(f"flag #{flag} | displaying login page", name=__name__)
             views.display_login_page(logger, authenticator)
             
-        if st.session_state.get('current_view') == "job_informations":
+        elif st.session_state.get('current_view') == "job_informations":
             logger.log(f"flag #{flag} | displaying job_informations page", name=__name__)
-            views.display_job_informations(logger)
+            views.display_job_informations(logger, url="http://127.0.0.1:8000/test")
             
-        if st.session_state.get('current_view') == "user_information":
+        elif st.session_state.get('current_view') == "user_information":
             logger.log(f"flag #{flag} | displaying user_information page", name=__name__)
             views.display_user_information(logger, authenticator)
+            
+        else:
+            logger.log(f"flag #{flag} | session state not correctly set; plz check logic flow", name=__name__, flag=1)
+            views.display_error_page(logger)
+            
         logger.log(f"flag #{flag} | display functions loaded", name=__name__)
     
         
