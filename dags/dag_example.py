@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.operators.bash import BashOperator
 from kubernetes.client import models as k8s
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 default_args = {
     'owner': 'airflow',
