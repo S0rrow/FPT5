@@ -99,7 +99,7 @@ def main():
             
         elif st.session_state.get('current_view') == "job_informations":
             logger.log(f"flag #{flag} | displaying job_informations page", name=__name__)
-            views.display_job_informations(logger, url="http://127.0.0.1:8000/test")
+            views.display_job_informations(logger, url="http://127.0.0.1:8000/query")
             
         elif st.session_state.get('current_view') == "user_information":
             logger.log(f"flag #{flag} | displaying user_information page", name=__name__)

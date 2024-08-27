@@ -4,6 +4,10 @@ import json, requests, ast
 import matplotlib.pyplot as plt
 from collections import Counter
 
+def load_config(config_path:str='config.json'):
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
 @st.cache_data
 def _get_dataframe_(_logger, url:str, database:str, query:str)->pd.DataFrame:
     '''
@@ -64,12 +68,13 @@ def display_job_informations(logger, url:str=None, database:str=None, query:str=
         display job informations retreived from given url
     '''
     try:
+        config = load_config()
         if not url:
-            url = "http://192.168.0.61:8000/test"
+            url = config.get("API_URL")
         if not query:
-            query = f"SELECT * from job_information"
+            query = f"SELECT * from {config.get('TABLE')}"
         if not database:
-            database = "streamlit"
+            database = config.get("DATABASE")
         logger.log(f"url:{url}, query:{query}, database:{database}", name=__name__)
         st.title("Job Information - Tech Stack Visualizations")
         st.header("Job Informations")
