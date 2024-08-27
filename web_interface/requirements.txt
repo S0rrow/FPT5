@@ -1,0 +1,10 @@
+fastapi
+fastapi[standard]
+streamlit
+streamlit-google-auth
+pandas
+pydantic
+sqlalchemy
+matlotlib
+google-auth-oauthlib
+boto3

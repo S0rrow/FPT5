@@ -1,15 +1,16 @@
-import json, boto3
+import json, boto3, logging
 from farmhash import FarmHash32 as fhash
+from botocore.exceptions import ClientError
 import pandas as pd
-import src.utils as utils
+import utils
 
 
 # S3 client 생성에 필요한 보안 자격 증명 정보 get
-with open("./.KEYS/API_KEYS.json", "r") as f:
+with open("../.KEYS/API_KEYS.json", "r") as f:
     key = json.load(f)
 
 # S3 버킷 정보 get
-with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
+with open("../.KEYS/DATA_SRC_INFO.json", "r") as f:
     bucket_info = json.load(f)
     
 # S3 섹션 및 client 생성
@@ -29,7 +30,7 @@ target_folder_prefix = bucket_info['target_folder_prefix']['wanted_path']
 def get_bucket_metadata():
     # 특정 폴더 내 파일 목록 가져오기
     response = s3.list_objects_v2(Bucket=pull_bucket_name, Prefix=target_folder_prefix, Delimiter='/')
-    curr_date = utils.set_curr_kst_time()
+    curr_date = utils.get_curr_kst_time()
     kst_tz = utils.set_kst_timezone()
 
     # curr_date 보다 날짜가 늦은 data josn 파일 metadata 객체 분류
@@ -41,16 +42,21 @@ def get_bucket_metadata():
 
 def data_pre_process(df):
     # 1. id key 생성
-    df['id'] = fhash("WAN" + df['company_name'] + df['job_id'].astype(str))
-    df['position'] = df['position'].apply(lambda x: utils.remove_multiful_space(utils.replace_special_to_space(x)))
-    df['tasks'] = df['tasks'].apply(lambda x: utils.remove_multiful_space(utils.replace_special_to_space(utils.change_slash_format(x.replace("\n", " ")), pattern=r'[^a-zA-Z0-9가-힣\s.,-]')))
-    df['requirements'] = df['requirements'].apply(lambda x: utils.remove_multiful_space(utils.replace_special_to_space(x.replace("\n", " "), pattern=r'[^a-zA-Z0-9가-힣\s.,-/]')))
-    df['prefer'] = df['prefer'].apply(lambda x: utils.remove_multiful_space(utils.replace_special_to_space(x.replace("\n", " "), pattern=r'[^a-zA-Z0-9가-힣\s.,-/]')))
-    df['due_date'] = df['due_date'].apply(lambda x: utils.change_str_to_timestamp(x))
-    df['site_symbol'] = "WAN"
-    df['crawl_url'] = "https://www.wanted.co.kr/wd/" + df['job_id'].astype(str)
-    
-    return df.to_dict(orient='records')
+    try:
+        df['id'] = "WAN" + df['company_name'] + df['job_id'].astype(str)
+        df['id'] = df['id'].apply(lambda x: fhash(x))
+        df['position'] = df['position'].apply(lambda x: utils.remove_multiful_space(utils.replace_special_to_space(x)))
+        df['tasks'] = df['tasks'].apply(lambda x: utils.remove_multiful_space(utils.replace_special_to_space(utils.change_slash_format(x.replace("\n", " ")), pattern=r'[^a-zA-Z0-9가-힣\s.,-]')))
+        df['requirements'] = df['requirements'].apply(lambda x: utils.remove_multiful_space(utils.replace_special_to_space(x.replace("\n", " "), pattern=r'[^a-zA-Z0-9가-힣\s.,-/]')))
+        df['prefer'] = df['prefer'].apply(lambda x: utils.remove_multiful_space(utils.replace_special_to_space(x.replace("\n", " "), pattern=r'[^a-zA-Z0-9가-힣\s.,-/]')))
+        df['due_date'] = df['due_date'].apply(lambda x: utils.change_str_to_timestamp(x))
+        df['site_symbol'] = "WAN"
+        df['crawl_url'] = "https://www.wanted.co.kr/wd/" + df['job_id'].astype(str)
+    except KeyError as e:
+        logging.error(f"KeyError: {e} - Available columns: {df.columns}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+    return df
 
 def upload_data(records):
     # DynamoDB 클라이언트 생성
@@ -64,9 +70,8 @@ def upload_data(records):
     for item in records:
         table.put_item(Item=item)
     
-    dynamodb.close()
-    
 def main():
+    new_columns = ['job_title', 'job_tasks', 'job_requirements', 'job_prefer', 'end_date', 'job_id', 'company_id', 'company_name', 'crawl_domain', 'get_date', 'id', 'site_symbol', 'crawl_url']
     metadata_list = get_bucket_metadata()
     if metadata_list:
         for obj in metadata_list:
@@ -75,9 +80,11 @@ def main():
                 json_context = response['Body'].read().decode('utf-8')
                 cleaned_text = utils.remove_unusual_line_terminators(json_context)
                 json_list = [json.loads(line) for line in cleaned_text.strip().splitlines()] # pandas format으로 맞추기
-                upload_data(data_pre_process(pd.DataFrame(json_list)))
+                preprocessed_df = data_pre_process(pd.DataFrame(json_list))
+                preprocessed_df.columns = new_columns
+                upload_data(preprocessed_df.to_dict(orient='records'))
                 
-            except JSONDecodeError as e:
+            except json.JSONDecodeError as e:
                 logging.error(f"JSONDecodeError encountered: {e}")
                 continue
             except ClientError as e:
@@ -86,8 +93,6 @@ def main():
             except Exception as e:
                 logging.error(f"An unexpected error occurred: {e}")
                 continue
-            
-            #break
     else:
         return False
 
