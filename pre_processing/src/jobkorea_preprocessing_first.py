@@ -151,7 +151,7 @@ class jobkorea:
         #company_name
         result['company_name'] = df['company']
         # 모집분야
-        result['job_tasks'] = df['모집분야'].apply(lambda x: ' '.join(re.sub(r'[^.,/\-+()\s\w]',' ',x.replace('\\/','/')).split()))
+        result['job_tasks'] = df['모집분야'].apply(lambda x: ' '.join(re.sub(r'[^.,/\-+()\s\w]',' ',x.replace('\\/','/')).split()) if x != None else x)
         # 스킬
         result['stacks'] = df['스킬'].apply(lambda x: x.replace('\\/','/') if x !=None else x) 
         #산업
@@ -183,7 +183,7 @@ def get_bucket_metadata(s3_client, pull_bucket_name,target_folder_prefix):
 
     # curr_date 보다 날짜가 늦은 data josn 파일 metadata 객체 분류
     if 'Contents' in response:
-        return [obj for obj in response['Contents'] if curr_date <= obj['LastModified'].astimezone(kst_tz).date()]
+        return [obj for obj in response['Contents']]
     else:
         #print("No objects found in the folder.")
         return None
@@ -231,9 +231,14 @@ def main():
     kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
 
     metadata_list = get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix)
-
+    # meatadata_list[0] is directory path so ignore this item
+    for i in metadata_list[1:]:
+        _key= i["Key"]
+        copy_source = {"Bucket":"crawl-data-lake","Key":_key}
+        s3.copy(copy_source,"crawl-data-archive","jobkorea/data/")
+        #s3.delete_object(Bucket='string',Key='string')
     all_data = pd.DataFrame()
-    for obj in metadata_list:
+    for obj in metadata_list[1:]:
         try:
             response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
             json_context = response['Body'].read().decode('utf-8')

@@ -2,12 +2,13 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import subprocess, os
-from time import gmtime, strftime
 import re
 import time
 import pandas as pd
 import subprocess, os
 from time import gmtime, strftime
+import pytz
+
 
 def log(msg, flag=None, path="./logs"):
     if flag==None:
@@ -23,23 +24,8 @@ def log(msg, flag=None, path="./logs"):
     else: assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" >> {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
 
 def get_time():
-    return strftime("%Y-%m-%d_%H%M%S", gmtime())
-
-def lambda_handler(event, context):
-    s3 = boto3.client('s3')
-    try:
-        bucket_name = 'crawl-data-lake'
-        instance = jobkorea()
-        instance.get_job()
-        export_date = get_time()
-        df = instance.to_dataframe()
-        df['crawl_domain'] = "www.jobkorea.co.kr"
-        df['get_date'] = export_date
-        wr.s3.to_json(df=df, path=f"s3://{bucket_name}/wanted/data/{export_date}.json", orient='records', lines=True, force_ascii=False, date_format='iso')
-    except Exception as e:
-        return {"statusCode": 500, "body": f"Error: {str(e)} "}
-    else:
-        return {"statusCode": 200, "body": "Data processed successfully"}
+    kst_tz = pytz.timezone('Asia/Seoul')
+    return datetime.strftime(datetime.now().astimezone(kst_tz),"%Y-%m-%d_%H%M%S")
 
 
 
@@ -87,6 +73,7 @@ class jobkorea:
             
         for job_id in self.all_dict:
             self.all_dict[job_id]['job_id'] = job_id
+            self.all_dict[job_id]['target_url'] = base_url + job_id
             self.post_swipgegiread(job_id)  
 
                 
@@ -147,4 +134,36 @@ class jobkorea:
         for i in self.all_dict:
             _list.append(self.all_dict[i])
         return pd.DataFrame(_list)
+    
+def main():
+    try:
+        bucket_name = 'crawl-data-lake'
+        instance = jobkorea()
+        instance.get_job(flag='all')
+        export_date = get_time()
+        df = instance.to_dataframe()
+        df['crawl_domain'] = "www.jobkorea.co.kr"
+        df['get_date'] = export_date
+        with open("./API_KEYS.json", "r") as f:
+            key = json.load(f)
+
+        # S3 버킷 정보 get
+        with open("./DATA_SRC_INFO.json", "r") as f:
+            bucket_info = json.load(f)
+        # S3 섹션 및 client 생성
+        session = boto3.Session(
+            aws_access_key_id=key['aws_access_key_id'],
+            aws_secret_access_key=key['aws_secret_key'],
+            region_name=key['region']
+        )
+        s3 = session.client('s3')
+        s3.put_object(Body=df.to_json(orient='records',lines=True,force_ascii=False,date_format='iso'),Bucket=bucket_name,Key=f'jobkorea/data/{export_date}.json')
+        
+    except Exception as e:
+        return {"statusCode": 500, "body": f"Error: {str(e)} "}
+    else:
+        return {"statusCode": 200, "body": "Data processed successfully"}
+
+if __name__ == "__main__":
+    main()
         
