@@ -181,7 +181,6 @@ def get_bucket_metadata(s3_client, pull_bucket_name,target_folder_prefix):
     curr_date = set_curr_kst_time()
     kst_tz = set_kst_timezone()
 
-    # curr_date 보다 날짜가 늦은 data josn 파일 metadata 객체 분류
     if 'Contents' in response:
         return [obj for obj in response['Contents']]
     else:
@@ -222,6 +221,7 @@ def main():
 
     # S3 버킷 정보 init
     pull_bucket_name = bucket_info['pull_bucket_name']
+    dump_bucket_name = bucket_info['dump_bucket_name']
     push_table_name = bucket_info['restore_table_name']
     target_folder_prefix = bucket_info['target_folder_prefix']['jobkorea_path']
     # 특정 폴더 내 파일 목록 가져오기
@@ -232,11 +232,12 @@ def main():
 
     metadata_list = get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix)
     # meatadata_list[0] is directory path so ignore this item
+    # copy files in crawl-data-lake to 
     for i in metadata_list[1:]:
         _key= i["Key"]
-        copy_source = {"Bucket":"crawl-data-lake","Key":_key}
-        s3.copy(copy_source,"crawl-data-archive","jobkorea/data/")
-        #s3.delete_object(Bucket='string',Key='string')
+        copy_source = {"Bucket":pull_bucket_name,"Key":_key}
+        s3.copy(copy_source,dump_bucket_name,_key)
+        s3.delete_object(Bucket=copy_source["Bucket"],Key=copy_source["Key"])
     all_data = pd.DataFrame()
     for obj in metadata_list[1:]:
         try:
@@ -248,6 +249,8 @@ def main():
             result = instance.pre_processing_first(json_list)
             all_data = pd.concat([all_data,result])
         except Exception as e:
+            s3.copy({"Bucket":dump_bucket_name,"Key":obj["Key"]}},pull_bucket_name,obj["Key"])
+            s3.delete_object(Bucket=dump_bucket_name,Key=obj["Key"])
             pass
         if len(all_data):
             upload_data(all_data,key,push_table_name)
