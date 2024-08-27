@@ -16,7 +16,7 @@ default_args = {
 
 volume_mount = k8s.V1VolumeMount(
     name="airflow-worker-pvc",
-    mount_path="/mnt/data/airflow",:
+    mount_path="/mnt/data/airflow",
     sub_path=None,
     read_only=False
 )
