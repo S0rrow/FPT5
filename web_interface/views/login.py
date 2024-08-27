@@ -1,9 +1,8 @@
 import streamlit as st
 from google_auth_oauthlib.flow import Flow
 from streamlit_google_auth import Authenticate
-from ..utils import Logger
 
-def display_login_page(logger:Logger, authenticator:Authenticate):
+def display_login_page(logger, authenticator:Authenticate):
     logger.log(f"rendering login button...",name=__name__)
     try:
         st.header("Login with Google Account")
