@@ -38,7 +38,7 @@ with DAG(
     run_script = KubernetesPodOperator(
         task_id='first_preprocessing_jobkorea',
         namespace='airflow',
-        image='apache/airflow:2.9.3',
+        image='ghcr.io/abel3005/first_preprocessing:latest',
         cmds=["/bin/bash", "-c"],
         arguments=["sh /mnt/data/airflow/jobkorea_preprocessing/runner.sh"],
         name='first_preprocessing_jobkorea',
