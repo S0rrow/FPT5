@@ -50,3 +50,52 @@ Input Data에서 주어진 json 포맷의 텍스트 데이터에서 `indurstry_t
  'job_tasks': '광화문 흥국생명 차세대시스템 구축',
  'id': Decimal('2352333735'),
  'stacks': 'JAVA, BXM 프레임웍, 융자업무 관련 경험자'}
+
+
+ # rocket-punch
+ ```json
+{
+  "dev_stack": [
+    "Node.js",
+    "TypeScript",
+    "NestJS",
+    "Java",
+    "Spring",
+    "MySQL",
+    "MongoDB",
+    "Kafka",
+    "Redis",
+    "OpenSearch",
+    "Kubernetes",
+    "GitOps",
+    "Datadog",
+    "Grafana",
+    "Prometheus",
+    "AWS",
+    "NCP"
+  ],
+  "job_requirements": [
+    "컴퓨터 공학 관련 전공",
+    "웹서버 프레임워크 활용 백엔드 API 개발 경험",
+    "Git 사용 가능",
+    "산업기능요원 보충역 근무 대상",
+    "부산 근무 가능"
+  ],
+  "job_prefer": [
+    "실제 사용 목적 서비스 개발 경험",
+    "협업 프로젝트 수행 경험",
+    "자동화 테스트 코드 작성 가능"
+  ],
+  "job_category": [
+    "Backend Engineer",
+    "Software Engineer",
+    "API Developer"
+  ],
+  "indurstry_type": [
+    "LegalTech",
+    "FinTech",
+    "Software",
+    "Technology"
+  ]
+}
+```
