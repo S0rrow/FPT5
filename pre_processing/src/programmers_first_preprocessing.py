@@ -12,12 +12,12 @@ import requests
 
 
 # S3 client 생성에 필요한 보안 자격 증명 정보 get
-with open("../.KEYS/API_KEYS.json", "r") as f:
+with open("./.KEYS/API_KEYS.json", "r") as f:
 # with open("./API_KEYS.json", "r") as f:
     key = json.load(f)
 
 # S3 버킷 정보 get
-with open("../.KEYS/DATA_SRC_INFO.json", "r") as f:
+with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
 # with open("./DATA_SRC_INFO.json", "r") as f:
     bucket_info = json.load(f)
     
@@ -156,7 +156,7 @@ def preprocess_dataframe(tmpdf):
     
     
     # 컬럼명 변경
-    df.rename(columns={'companyId': 'company_id', 'companyname': 'company_name', 
+    df.rename(columns={'title':'job_title', 'companyId': 'company_id', 'companyname': 'company_name', 
                        'description':'job_tasks', 'technicalTags':'stacks', 
                        'requirement':'job_requirements', 'preferredExperience':'job_prefer',
                        'jobCategoryIds':'job_category', 'updatedAt':'start_date', 
@@ -197,8 +197,6 @@ def main():
         json_list = [json.loads(line) for line in cleaned_text.strip().splitlines()] # pandas format으로 맞추기
         master_df = preprocess_dataframe(pd.DataFrame(json_list))
         upload_data(master_df.to_dict(orient='records'))
-
-        
         
     except JSONDecodeError as e:
         logging.error(f"JSONDecodeError encountered: {e}")
