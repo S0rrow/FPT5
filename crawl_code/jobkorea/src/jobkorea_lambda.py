@@ -1,13 +1,15 @@
 from bs4 import BeautifulSoup
-from time import gmtime, strftime
-import time
 import pandas as pd
 import awswrangler as wr
 import requests, re
+import pytz
+import time
+from datetime import datetime
 
 
 def get_time():
-    return strftime("%Y-%m-%d_%H%M%S", gmtime())
+    kst_tz = pytz.timezone('Asia/Seoul')
+    return datetime.strftime(datetime.now().astimezone(kst_tz),"%Y-%m-%d_%H%M%S")
 
 def lambda_handler(event, context):
     try:
