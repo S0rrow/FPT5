@@ -8,7 +8,7 @@ import pandas as pd
 import subprocess, os
 from farmhash import FarmHash32 as fhash
 import pytz
-from utils import set_curr_kst_time,set_kst_timezone
+from utils import get_curr_kst_time,set_kst_timezone
 
 import json, boto3, pytz
 
@@ -178,7 +178,7 @@ class jobkorea:
 def get_bucket_metadata(s3_client, pull_bucket_name,target_folder_prefix):
     # 특정 폴더 내 파일 목록 가져오기
     response = s3_client.list_objects_v2(Bucket=pull_bucket_name, Prefix=target_folder_prefix, Delimiter='/')
-    curr_date = set_curr_kst_time()
+    curr_date = get_curr_kst_time()
     kst_tz = set_kst_timezone()
 
     if 'Contents' in response:
@@ -204,11 +204,11 @@ def upload_data(records, key, push_table_name):
 def main():
 
     # S3 client 생성에 필요한 보안 자격 증명 정보 get
-    with open("./API_KEYS.json", "r") as f:
+    with open("./.KEYS/API_KEYS.json", "r") as f:
         key = json.load(f)
 
     # S3 버킷 정보 get
-    with open("./DATA_SRC_INFO.json", "r") as f:
+    with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
         bucket_info = json.load(f)
     # S3 섹션 및 client 생성
     session = boto3.Session(
@@ -233,27 +233,26 @@ def main():
     metadata_list = get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix)
     # meatadata_list[0] is directory path so ignore this item
     # copy files in crawl-data-lake to 
-    for i in metadata_list[1:]:
-        _key= i["Key"]
-        copy_source = {"Bucket":pull_bucket_name,"Key":_key}
-        s3.copy(copy_source,dump_bucket_name,_key)
-        s3.delete_object(Bucket=copy_source["Bucket"],Key=copy_source["Key"])
     all_data = pd.DataFrame()
     for obj in metadata_list[1:]:
         try:
+            copy_source = {"Bucket":pull_bucket_name,"Key":obj['Key']} 
             response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
+            s3.copy(copy_source,dump_bucket_name,obj['Key'])
+            s3.delete_object(Bucket=pull_bucket_name,Key=obj['Key'])      
             json_context = response['Body'].read().decode('utf-8')
             cleaned_text = re.sub(r'[\r\u2028\u2029]+', ' ', json_context) # 파싱을 위해 unuseal line terminators 제거
             json_list = [json.loads(line) for line in cleaned_text.strip().splitlines()] # pandas format으로 맞추기
             instance = jobkorea()
             result = instance.pre_processing_first(json_list)
             all_data = pd.concat([all_data,result])
+            if len(all_data):
+                upload_data(all_data,key,push_table_name)
         except Exception as e:
-            s3.copy({"Bucket":dump_bucket_name,"Key":obj["Key"]}},pull_bucket_name,obj["Key"])
-            s3.delete_object(Bucket=dump_bucket_name,Key=obj["Key"])
+            s3.copy({"Bucket":dump_bucket_name,"Key":obj["Key"]},pull_bucket_name,obj["Key"])
+            #s3.delete_object(Bucket=dump_bucket_name,Key=obj["Key"])
             pass
-        if len(all_data):
-            upload_data(all_data,key,push_table_name)
+        
 
 if __name__ == "__main__":
     main()
