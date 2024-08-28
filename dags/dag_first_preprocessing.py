@@ -27,7 +27,7 @@ volume = k8s.V1Volume(
 )
 
 with DAG(
-    dag_id='preprocessing_jobkorea',
+    dag_id='first_preprocessing',
     default_args=default_args,
     description="activate dag every 11'o KST to preprocess jobkorea crawl data",
     schedule_interval='0 11 * * *',
