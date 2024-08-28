@@ -35,7 +35,7 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    run_script = KubernetesPodOperator(
+    jobkorea = KubernetesPodOperator(
         task_id='first_preprocessing_jobkorea',
         namespace='airflow',
         image='ghcr.io/abel3005/first_preprocessing:latest',
@@ -43,6 +43,19 @@ with DAG(
         arguments=["sh /mnt/data/airflow/jobkorea_preprocessing/runner.sh"],
         name='first_preprocessing_jobkorea',
         volume_mounts=[volume_mount],
-        volumes=[volume]
+        volumes=[volume],
+        dag=dag,
+    )
+    programmers = KubernetesPodOperator(
+        task_id='first_preprocessing_programmers',
+        namespace='airflow',
+        image='ghcr.io/abel3005/first_preprocessing:latest',
+        cmds=["/bin/bash", "-c"],
+        arguments=["sh /mnt/data/airflow/programmers_preprocessing/runner.sh"],
+        name='first_preprocessing_jobkorea',
+        volume_mounts=[volume_mount],
+        volumes=[volume],
+        dag=dag,
     )
     
+    jobkorea >> programmers
