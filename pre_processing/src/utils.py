@@ -1,6 +1,4 @@
-import re, datetime, pytz
-
-import subprocess, os
+import re, datetime, pytz, subprocess, os
 from time import gmtime, strftime
 
 def log(msg, flag=None, path="./logs"):
@@ -15,6 +13,17 @@ def log(msg, flag=None, path="./logs"):
     if not os.path.isfile(f"{path}/{head[flag]}.log"):
         assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" > {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
     else: assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" >> {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
+
+# s3 client를 통해 해당 path의 file 목록 가져오기
+def get_bucket_metadata(s3_client, pull_bucket_name,target_folder_prefix):
+    # 특정 폴더 내 파일 목록 가져오기
+    response = s3_client.list_objects_v2(Bucket=pull_bucket_name, Prefix=target_folder_prefix, Delimiter='/')
+
+    if 'Contents' in response:
+        return [obj for obj in response['Contents']]
+    else:
+        #print("No objects found in the folder.")
+        return None
 
 # 로컬 시간대(UTC+9)로 현재 날짜 설정
 def get_curr_kst_time():
