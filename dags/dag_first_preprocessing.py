@@ -57,5 +57,15 @@ with DAG(
         volumes=[volume],
         dag=dag,
     )
-    
-    jobkorea >> programmers
+    wanted = KubernetesPodOperator(
+        task_id='first_preprocessing_programmers',
+        namespace='airflow',
+        image='ghcr.io/abel3005/first_preprocessing:latest',
+        cmds=["/bin/bash", "-c"],
+        arguments=["sh /mnt/data/airflow/wanted_preprocessing/runner.sh"],
+        name='first_preprocessing_wanted',
+        volume_mounts=[volume_mount],
+        volumes=[volume],
+        dag=dag,
+    )
+    jobkorea >> programmers >> wanted
