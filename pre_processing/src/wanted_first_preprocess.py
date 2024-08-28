@@ -6,11 +6,11 @@ import utils
 
 
 # S3 client 생성에 필요한 보안 자격 증명 정보 get
-with open("../.KEYS/API_KEYS.json", "r") as f:
+with open("./.KEYS/API_KEYS.json", "r") as f:
     key = json.load(f)
 
 # S3 버킷 정보 get
-with open("../.KEYS/DATA_SRC_INFO.json", "r") as f:
+with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
     bucket_info = json.load(f)
     
 # S3 섹션 및 client 생성
