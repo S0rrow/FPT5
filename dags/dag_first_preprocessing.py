@@ -58,7 +58,7 @@ with DAG(
         dag=dag,
     )
     wanted = KubernetesPodOperator(
-        task_id='first_preprocessing_programmers',
+        task_id='first_preprocessing_wanted',
         namespace='airflow',
         image='ghcr.io/abel3005/first_preprocessing:latest',
         cmds=["/bin/bash", "-c"],
