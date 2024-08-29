@@ -27,7 +27,7 @@ volume = k8s.V1Volume(
 )
 
 with DAG(
-    dag_id='programmers_preprocessing',
+    dag_id='first_preprocessing',
     default_args=default_args,
     description="activate dag every 11'o KST to preprocess jobkorea crawl data",
     schedule_interval='0 11 * * *',
@@ -35,7 +35,18 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    first_preprocessing = KubernetesPodOperator(
+    jobkorea = KubernetesPodOperator(
+        task_id='first_preprocessing_jobkorea',
+        namespace='airflow',
+        image='ghcr.io/abel3005/first_preprocessing:latest',
+        cmds=["/bin/bash", "-c"],
+        arguments=["sh /mnt/data/airflow/jobkorea_preprocessing/runner.sh"],
+        name='first_preprocessing_jobkorea',
+        volume_mounts=[volume_mount],
+        volumes=[volume],
+        dag=dag,
+    )
+    programmers = KubernetesPodOperator(
         task_id='first_preprocessing_programmers',
         namespace='airflow',
         image='ghcr.io/abel3005/first_preprocessing:latest',
@@ -46,4 +57,15 @@ with DAG(
         volumes=[volume],
         dag=dag,
     )
-    first_preprocessing
+    wanted = KubernetesPodOperator(
+        task_id='first_preprocessing_wanted',
+        namespace='airflow',
+        image='ghcr.io/abel3005/first_preprocessing:latest',
+        cmds=["/bin/bash", "-c"],
+        arguments=["sh /mnt/data/airflow/wanted_preprocessing/runner.sh"],
+        name='first_preprocessing_wanted',
+        volume_mounts=[volume_mount],
+        volumes=[volume],
+        dag=dag,
+    )
+    jobkorea >> programmers >> wanted

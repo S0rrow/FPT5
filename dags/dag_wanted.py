@@ -27,7 +27,7 @@ volume = k8s.V1Volume(
 )
 
 with DAG(
-    dag_id='preprocessing_jobkorea',
+    dag_id='wanted_preprocessing',
     default_args=default_args,
     description="activate dag every 11'o KST to preprocess jobkorea crawl data",
     schedule_interval='0 11 * * *',
@@ -35,14 +35,15 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    run_script = KubernetesPodOperator(
-        task_id='first_preprocessing_jobkorea',
+    first_preprocessing = KubernetesPodOperator(
+        task_id='first_preprocessing_wanted',
         namespace='airflow',
-        image='apache/airflow:2.9.3',
+        image='ghcr.io/abel3005/first_preprocessing:latest',
         cmds=["/bin/bash", "-c"],
-        arguments=["sh /mnt/data/airflow/jobkorea_preprocessing/runner.sh"],
-        name='first_preprocessing_jobkorea',
+        arguments=["sh /mnt/data/airflow/wanted_preprocessing/runner.sh"],
+        name='first_preprocessing_wanted',
         volume_mounts=[volume_mount],
-        volumes=[volume]
+        volumes=[volume],
+        dag=dag,
     )
-    
+    first_preprocessing
