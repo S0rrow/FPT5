@@ -88,22 +88,9 @@ def parse_job_page(payload, data, header):
         job['job_url'] = job_url.format(id=job['job_id'])
         
         # 채용 시작일/만료일 : date_start, date_end
-        job_date = soup.find('div', class_='job-dates')
-        date_span = job_date.find_all('span') if job_date else []
-        only_date_span = [re.sub(pattern, '', span.text) for span in date_span]
+        job_date_raw = soup.find('div', class_='ui job-infoset-content items')
+        #
         
-        valid_date = []
-        for mmdd in only_date_span:
-            mmdd = mmdd.strip()
-            if mmdd == "" :
-                valid_date.append('Null')
-            else:
-                date_obj = datetime.strptime(f'{current_year}/{mmdd.strip()}', '%Y/%m/%d')
-                formatted_date = date_obj.strftime('%Y.%m.%d')
-                valid_date.append(formatted_date)
-                
-        job['date_end'] = valid_date[0]
-        job['date_start'] = valid_date[-1]
         
         # 주요 업무(업무 내용) : job_task
         job_task_div = soup.find('div', class_='duty break')
