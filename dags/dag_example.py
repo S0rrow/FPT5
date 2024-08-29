@@ -68,7 +68,7 @@ with DAG(
         namespace='airflow',
         image='ghcr.io/abel3005/first_preprocessing:latest',
         cmds=["/bin/bash", "-c"],
-        args=["python3", "/mnt/data/airflow/testers/test.py"],
+        arguments=["/mnt/data/airflow/venv/bin/python /mnt/data/airflow/testers/test.py"],
         name='run-script',
         volume_mounts=[volume_mount],
         volumes=[volume],
