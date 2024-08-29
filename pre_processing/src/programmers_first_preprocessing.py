@@ -3,7 +3,7 @@ from json import JSONDecodeError
 from botocore.exceptions import ClientError
 from farmhash import FarmHash32 as fhash
 
-from utils import get_curr_kst_time, set_kst_timezone
+# from utils import get_curr_kst_time, set_kst_timezone
 
 import json, boto3, datetime, pytz
 import pandas as pd
@@ -72,7 +72,7 @@ else:
     job_category_json = r.json()
     
     # 가져온 데이터를 파일로 저장
-    with open(file_path, "w") as f:
+    with open(file_path, "w", encoding='utf-8', ensure_ascii=False) as f:
         json.dump(job_category_json, f)
 
 # JSON 데이터를 DataFrame으로 변환
@@ -88,7 +88,7 @@ def tagid_to_tagname(tags, job_table):
     Returns:
         _type_: list
     """
-    return ', '.join(job_table[job_table['tagid'].isin(tags)]['tagname'].tolist())
+    return ', '.join(job_table[job_table['id'].isin(tags)]['name'].tolist())
 
 
 def preprocess_dataframe(tmpdf):
