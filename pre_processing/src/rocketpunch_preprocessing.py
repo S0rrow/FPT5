@@ -112,6 +112,8 @@ def preprocessing(df, key):
             date_end = datetime.datetime.strptime(data['date_end'], "%Y.%m.%d")
             date_end_stp = int(date_end.timestamp())
             processing_dict['end_date'] = date_end_stp
+        else:
+            processing_dict['end_date'] = 'null'
         
         # job_career > required_career
         processing_dict['required_career'] = any(career in "신입" for career in data['job_career'])
