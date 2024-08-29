@@ -4,6 +4,7 @@ from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import Kubernete
 from airflow.operators.bash import BashOperator
 from kubernetes.client import models as k8s
 from datetime import datetime, timedelta
+from airflow.models.variable import Variable
 
 default_args = {
     'owner': 'airflow',
