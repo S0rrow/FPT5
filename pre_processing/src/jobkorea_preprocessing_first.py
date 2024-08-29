@@ -233,7 +233,6 @@ def main():
     metadata_list = get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix)
     # meatadata_list[0] is directory path so ignore this item
     # copy files in crawl-data-lake to 
-    all_data = pd.DataFrame()
     for obj in metadata_list[1:]:
         try:
             copy_source = {"Bucket":pull_bucket_name,"Key":obj['Key']} 
@@ -245,9 +244,8 @@ def main():
             json_list = [json.loads(line) for line in cleaned_text.strip().splitlines()] # pandas format으로 맞추기
             instance = jobkorea()
             result = instance.pre_processing_first(json_list)
-            all_data = pd.concat([all_data,result])
             if len(all_data):
-                upload_data(all_data,key,push_table_name)
+                upload_data(result,key,push_table_name)
         except Exception as e:
             s3.copy({"Bucket":dump_bucket_name,"Key":obj["Key"]},pull_bucket_name,obj["Key"])
             #s3.delete_object(Bucket=dump_bucket_name,Key=obj["Key"])
