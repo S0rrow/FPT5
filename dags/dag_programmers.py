@@ -41,7 +41,7 @@ with DAG(
         image='ghcr.io/abel3005/first_preprocessing:latest',
         cmds=["/bin/bash", "-c"],
         arguments=["sh /mnt/data/airflow/programmers_preprocessing/runner.sh"],
-        name='first_preprocessing_jobkorea',
+        name='first_preprocessing_programmers',
         volume_mounts=[volume_mount],
         volumes=[volume],
         dag=dag,
