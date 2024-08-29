@@ -1,6 +1,5 @@
 from airflow import DAG
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
-from airflow.operators.bash import BashOperator
 from kubernetes.client import models as k8s
 from airflow.utils.dates import days_ago
 from datetime import timedelta
@@ -27,23 +26,21 @@ volume = k8s.V1Volume(
 )
 
 with DAG(
-    dag_id='programmers_preprocessing',
+    dag_id='preprocessing_programmers',
     default_args=default_args,
-    description="activate dag every 11'o KST to preprocess jobkorea crawl data",
-    schedule_interval='0 11 * * *',
+    description="프로그래머스 크롤링 데이터 전처리를 위한 DAG (매일 오후 11시 실행)",
+    schedule_interval='0 23 * * *',
     start_date=days_ago(1),
     catchup=False,
 ) as dag:
 
-    first_preprocessing = KubernetesPodOperator(
+    run_script = KubernetesPodOperator(
         task_id='first_preprocessing_programmers',
         namespace='airflow',
-        image='ghcr.io/abel3005/first_preprocessing:latest',
+        image='apache/airflow:2.9.3',
         cmds=["/bin/bash", "-c"],
-        arguments=["sh /mnt/data/airflow/programmers_preprocessing/runner.sh"],
+        arguments=["python /mnt/data/airflow/programmers_preprocessing/pro_preprocessing.py"],
         name='first_preprocessing_programmers',
         volume_mounts=[volume_mount],
-        volumes=[volume],
-        dag=dag,
+        volumes=[volume]
     )
-    first_preprocessing

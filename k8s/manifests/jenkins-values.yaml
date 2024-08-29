@@ -1,0 +1,7 @@
+persistence:
+  enabled: true
+  accessMode: "ReadWriteOnce"
+  size: "10Gi"
+  storageClass: "manual"
+controller:
+  adminSecret: false

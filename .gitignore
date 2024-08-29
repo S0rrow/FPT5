@@ -1,8 +1,8 @@
 # 불필요한 항목
 *venv
 __pycache__
-
 # 보안 문제상 제외 항목
+.KEYS
 API_KEYS
 data
 logs
@@ -20,3 +20,7 @@ latest_logs/
 crawl_code/linkedin/downloaded_files/
 crawl_code/linkedin/latest_logs/
 crawl_code/linkedin/logs/
+
+# directories need to be ignored from jobkorea crawler
+crawl_code/jobkorea/findAPI/
+

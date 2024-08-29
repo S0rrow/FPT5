@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import pandas as pd
 import awswrangler as wr
-import requests, json, boto3
+import requests, json
 
 def current_time_in_milliseconds():
     now = datetime.now(timezone.utc)
@@ -27,7 +27,8 @@ def get_detail(url, curr_t, position_id):
             "tasks": detail["detail"]["main_tasks"],
             "requirements": detail["detail"]["requirements"],
             "prefer": detail["detail"]["preferred_points"],
-            "company_id": detail["company"]["id"]
+            "company_id": detail["company"]["id"],
+            "company_name": detail["company"]["name"]
         }
         return p
     except Exception as e:
@@ -44,40 +45,22 @@ def get_positions_info(url_positions, url_detail, limit, offset_max):
         positions_data += [d for d in details if d is not None]
     return positions_data
 
-def load_offset(s3_client, bucket_name, file_key):
-    try:
-        # S3에서 파일 읽기
-        response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
-        
-        # 파일 내용 읽기
-        file_content = response['Body'].read().decode('utf-8')
-        
-        # JSON 데이터 파싱
-        data = json.loads(file_content)
-        return (data['positions_url'], data['detail_url'], data['limit'], data['offset_max'])
-    except Exception as e:
-        print("Error retrieving or processing file:", e)
-        raise
-
-
 def lambda_handler(event, context):
-    s3 = boto3.client('s3')
     bucket_name = 'crawl-data-lake'
-    file_key = 'wanted/wanted_offset.json'
     
     try:
-        result = load_offset(s3_client=s3, bucket_name=bucket_name, file_key=file_key)
-        if len(result) != 4:
-            raise ValueError(f"Unexpected number of values returned from load_offset")
-
-        wanted_positions_url, wanted_detail_url, limit, offset_max = result
+        payload = event.get('data', {})
+        wanted_positions_url = payload.get('positions_url')
+        wanted_detail_url = payload.get('detail_url')
+        limit = payload.get('limit')
+        offset_max = payload.get('offset_max')
     
         data = get_positions_info(url_positions=wanted_positions_url, url_detail=wanted_detail_url, limit=limit, offset_max=offset_max)
     
         try:
             curr_date = datetime.now()
             export_date = curr_date.strftime("%Y-%m-%d_%H%M%S")
-            new_order = ['position', 'tasks', 'requirements', 'prefer', 'due_date', 'job_id', 'company_id', 'crawl_domain', 'get_date']
+            new_order = ['position', 'tasks', 'requirements', 'prefer', 'due_date', 'job_id', 'company_id', 'company_name', 'crawl_domain', 'get_date']
     
             df = pd.DataFrame(data)
             df['crawl_domain'] = "www.wanted.co.kr"
