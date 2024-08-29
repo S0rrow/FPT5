@@ -1,0 +1,97 @@
+apiVersion: v1
+data:
+  airflow.cfg: "[celery]\nflower_url_prefix = \nworker_concurrency = 16\n\n[celery_kubernetes_executor]\nkubernetes_queue
+    = kubernetes\n\n[core]\ncolored_console_log = False\ndags_folder = /opt/airflow/dags/repo/dags\nexecutor
+    = KubernetesExecutor\nload_examples = False\nremote_logging = False\n\n[api]\nauth_backend
+    = airflow.api.auth.backend.basic_auth\nenable_experimental_api = True\n\n[elasticsearch]\njson_format
+    = True\nlog_id_template = {dag_id}_{task_id}_{execution_date}_{try_number}\n\n[elasticsearch_configs]\nmax_retries
+    = 3\nretry_timeout = True\ntimeout = 30\n\n[kerberos]\nccache = /var/kerberos-ccache/cache\nkeytab
+    = /etc/airflow.keytab\nprincipal = airflow@FOO.COM\nreinit_frequency = 3600\n\n[kubernetes]\nairflow_configmap
+    = airflow-config\nairflow_local_settings_configmap = airflow-config\nmulti_namespace_mode
+    = False\nnamespace = airflow\npod_template_file = /opt/airflow/pod_templates/pod_template_file.yaml\nworker_container_repository
+    = apache/airflow\nworker_container_tag = 2.9.3\n\n[kubernetes_executor]\nmulti_namespace_mode
+    = False\nnamespace = airflow\npod_template_file = /opt/airflow/pod_templates/pod_template_file.yaml\nworker_container_repository
+    = apache/airflow\nworker_container_tag = 2.9.3\n\n[logging]\ncolored_console_log
+    = False\nremote_logging = False\n\n[metrics]\nstatsd_host = airflow-statsd\nstatsd_on
+    = True\nstatsd_port = 9125\nstatsd_prefix = airflow\n\n[scheduler]\nrun_duration
+    = 41460\nstandalone_dag_processor = False\nstatsd_host = airflow-statsd\nstatsd_on
+    = True\nstatsd_port = 9125\nstatsd_prefix = airflow\n\n[triggerer]\ndefault_capacity
+    = 1000\n\n[webserver]\nenable_proxy_fix = True\nrbac = True"
+  airflow_local_settings.py: ""
+  pod_template_file.yaml: "\n---\napiVersion: v1\nkind: Pod\nmetadata:\n  name: placeholder-name\n
+    \ labels:\n    tier: airflow\n    component: worker\n    release: airflow\n  annotations:\n
+    \   cluster-autoscaler.kubernetes.io/safe-to-evict: \"false\"\nspec:\n  initContainers:\n
+    \   \n    - name: git-sync-init\n      image: registry.k8s.io/git-sync/git-sync:v4.1.0\n
+    \     imagePullPolicy: IfNotPresent\n      securityContext:\n        runAsUser:
+    65533\n      envFrom:  \n        []\n      env:\n        - name: GIT_SSH_KEY_FILE\n
+    \         value: \"/etc/git-secret/ssh\"\n        - name: GITSYNC_SSH_KEY_FILE\n
+    \         value: \"/etc/git-secret/ssh\"\n        - name: GIT_SYNC_SSH\n          value:
+    \"true\"\n        - name: GITSYNC_SSH\n          value: \"true\"\n        - name:
+    GIT_KNOWN_HOSTS\n          value: \"false\"\n        - name: GITSYNC_SSH_KNOWN_HOSTS\n
+    \         value: \"false\"\n        \n        - name: GIT_SYNC_REV\n          value:
+    \"HEAD\"\n        - name: GITSYNC_REF\n          value: \"v2-2-stable\"\n        -
+    name: GIT_SYNC_BRANCH\n          value: \"dev\"\n        - name: GIT_SYNC_REPO\n
+    \         value: \"git@github.com:S0rrow/FPT5.git\"\n        - name: GITSYNC_REPO\n
+    \         value: \"git@github.com:S0rrow/FPT5.git\"\n        - name: GIT_SYNC_DEPTH\n
+    \         value: \"1\"\n        - name: GITSYNC_DEPTH\n          value: \"1\"\n
+    \       - name: GIT_SYNC_ROOT\n          value: \"/git\"\n        - name: GITSYNC_ROOT\n
+    \         value: \"/git\"\n        - name: GIT_SYNC_DEST\n          value: \"repo\"\n
+    \       - name: GITSYNC_LINK\n          value: \"repo\"\n        - name: GIT_SYNC_ADD_USER\n
+    \         value: \"true\"\n        - name: GITSYNC_ADD_USER\n          value:
+    \"true\"\n        - name: GIT_SYNC_WAIT\n          value: \"60\"\n        - name:
+    GITSYNC_PERIOD\n          value: \"5s\"\n        - name: GIT_SYNC_MAX_SYNC_FAILURES\n
+    \         value: \"3\"\n        - name: GITSYNC_MAX_FAILURES\n          value:
+    \"3\"\n        - name: GIT_SYNC_ONE_TIME\n          value: \"true\"\n        -
+    name: GITSYNC_ONE_TIME\n          value: \"true\"\n      resources: \n        {}\n
+    \     volumeMounts:\n      - name: dags\n        mountPath: /git\n      - name:
+    git-sync-ssh-key\n        mountPath: /etc/git-secret/ssh\n        readOnly: true\n
+    \       subPath: gitSshKey\n  containers:\n    - envFrom:      \n        []\n
+    \     env:\n        - name: AIRFLOW__CORE__EXECUTOR\n          value: LocalExecutor
+    \     \n        # Hard Coded Airflow Envs\n        - name: AIRFLOW__CORE__FERNET_KEY\n
+    \         valueFrom:\n            secretKeyRef:\n              name: airflow-fernet-key\n
+    \             key: fernet-key\n        - name: AIRFLOW_HOME\n          value:
+    /opt/airflow\n        # For Airflow <2.3, backward compatibility; moved to [database]
+    in 2.3\n        - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN\n          valueFrom:\n
+    \           secretKeyRef:\n              name: airflow-metadata\n              key:
+    connection\n        - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN\n          valueFrom:\n
+    \           secretKeyRef:\n              name: airflow-metadata\n              key:
+    connection\n        - name: AIRFLOW_CONN_AIRFLOW_DB\n          valueFrom:\n            secretKeyRef:\n
+    \             name: airflow-metadata\n              key: connection\n        -
+    name: AIRFLOW__WEBSERVER__SECRET_KEY\n          valueFrom:\n            secretKeyRef:\n
+    \             name: airflow-webserver-secret\n              key: webserver-secret-key
+    \     \n        # Dynamically created environment variables\n        - name: AIRFLOW__CORE__DEFAULT_TIMEZONE\n
+    \         value: \"Asia/Seoul\"\n        - name: AIRFLOW__KUBERNETES_ENVIRONMENT_VARIABLES__AIRFLOW__CORE__DEFAULT_TIMEZONE\n
+    \         value: \"Asia/Seoul\"\n        # Dynamically created secret envs\n        \n
+    \       # Extra env      \n      image: apache/airflow:2.9.3\n      imagePullPolicy:
+    IfNotPresent\n      securityContext: \n        allowPrivilegeEscalation: false\n
+    \       capabilities:\n          drop:\n            - ALL\n      name: base\n
+    \     resources:\n        {}\n      volumeMounts:\n        - mountPath: \"/opt/airflow/logs\"\n
+    \         name: logs\n        - name: config\n          mountPath: \"/opt/airflow/airflow.cfg\"\n
+    \         subPath: airflow.cfg\n          readOnly: true\n        - name: config\n
+    \         mountPath: \"/opt/airflow/config/airflow_local_settings.py\"\n          subPath:
+    airflow_local_settings.py\n          readOnly: true\n        - name: dags\n          mountPath:
+    /opt/airflow/dags\n          readOnly: True\n  restartPolicy: Never\n  securityContext:
+    \n    runAsUser: 50000\n    fsGroup: 0\n  nodeSelector:\n    {}\n  affinity:\n
+    \   {}\n  terminationGracePeriodSeconds: 600\n  tolerations:\n    []\n  topologySpreadConstraints:\n
+    \   []\n  serviceAccountName: airflow-worker\n  volumes:\n  - name: dags\n    emptyDir:\n
+    \     {}\n  - name: logs\n    persistentVolumeClaim:\n      claimName: airflow-logs-pvc\n
+    \ \n  - name: git-sync-ssh-key\n    secret:\n      secretName: airflow-ssh-git-secret\n
+    \     defaultMode: 288\n  - configMap:\n      name: airflow-config\n    name:
+    config"
+kind: ConfigMap
+metadata:
+  annotations:
+    meta.helm.sh/release-name: airflow
+    meta.helm.sh/release-namespace: airflow
+  creationTimestamp: "2024-08-09T05:31:47Z"
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    chart: airflow-1.15.0
+    component: config
+    heritage: Helm
+    release: airflow
+    tier: airflow
+  name: airflow-config
+  namespace: airflow
+  resourceVersion: "5986015"
+  uid: 7d30e9be-14c4-47e4-a595-03d57680326b
