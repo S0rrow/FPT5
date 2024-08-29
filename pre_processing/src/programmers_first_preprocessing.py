@@ -2,51 +2,30 @@
 from json import JSONDecodeError
 from botocore.exceptions import ClientError
 from farmhash import FarmHash32 as fhash
+
+# from utils import get_curr_kst_time, set_kst_timezone
+
 import json, boto3, datetime, pytz
 import pandas as pd
-import re
-import pandas as pd
 import logging
-import os, json
 import requests
+import re
+import os
 
 
-# S3 client 생성에 필요한 보안 자격 증명 정보 get
-with open("../.KEYS/API_KEYS.json", "r") as f:
-# with open("./API_KEYS.json", "r") as f:
-    key = json.load(f)
 
-# S3 버킷 정보 get
-with open("../.KEYS/DATA_SRC_INFO.json", "r") as f:
-# with open("./DATA_SRC_INFO.json", "r") as f:
-    bucket_info = json.load(f)
-    
-# S3 섹션 및 client 생성
-session = boto3.Session(
-    aws_access_key_id=key['aws_access_key_id'],
-    aws_secret_access_key=key['aws_secret_key'],
-    region_name=key['region']
-)
-s3 = session.client('s3')
-
-# S3 버킷 정보 init
-pull_bucket_name = bucket_info['pull_bucket_name']
-# push_bucket_name = bucket_info['restore_table_name']
-push_table_name = bucket_info['restore_table_name']
-target_folder_prefix = bucket_info['target_folder_prefix']['programmers_path']
-
-def get_bucket_metadata():
+def get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix):
     # 특정 폴더 내 파일 목록 가져오기
     response = s3.list_objects_v2(Bucket=pull_bucket_name, Prefix=target_folder_prefix, Delimiter='/')
-    curr_date = datetime.datetime.now(pytz.timezone('Asia/Seoul')).date()  # 로컬 시간대(UTC+9)로 현재 날짜 설정
-    kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
+    # curr_date = datetime.datetime.now(pytz.timezone('Asia/Seoul')).date()  # 로컬 시간대(UTC+9)로 현재 날짜 설정
+    # kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
 
-    # curr_date 보다 날짜가 늦은 data josn 파일 metadata 객체 분류
     if 'Contents' in response:
-        return [obj for obj in response['Contents'] if curr_date <= obj['LastModified'].astimezone(kst_tz).date()]
-    else:
-        print("No objects found in the folder.")
-        return None
+        # return [obj for obj in response['Contents'] if curr_date <= obj['LastModified'].astimezone(kst_tz).date()]
+        return response['Contents']
+    
+    print("No objects found in the folder.")
+    return None
 
 
 
@@ -93,7 +72,7 @@ else:
     job_category_json = r.json()
     
     # 가져온 데이터를 파일로 저장
-    with open(file_path, "w") as f:
+    with open(file_path, "w", encoding='utf-8', ensure_ascii=False) as f:
         json.dump(job_category_json, f)
 
 # JSON 데이터를 DataFrame으로 변환
@@ -109,7 +88,7 @@ def tagid_to_tagname(tags, job_table):
     Returns:
         _type_: list
     """
-    return ', '.join(job_table[job_table['tagid'].isin(tags)]['tagname'].tolist())
+    return ', '.join(job_table[job_table['id'].isin(tags)]['name'].tolist())
 
 
 def preprocess_dataframe(tmpdf):
@@ -156,18 +135,18 @@ def preprocess_dataframe(tmpdf):
     
     
     # 컬럼명 변경
-    df.rename(columns={'companyId': 'company_id', 'companyname': 'company_name', 
-                       'description':'job_tasks', 'technicalTags':'stacks', 
-                       'requirement':'job_requirements', 'preferredExperience':'job_prefer',
-                       'jobCategoryIds':'job_category', 'updatedAt':'start_date', 
-                       'endAt':'end_date', 'careerRange':'required_career', 
+    df.rename(columns={'title':'job_title', 'jobcode':'job_id', 'companyId': 'company_id', 
+                       'companyname': 'company_name', 'description':'job_tasks', 
+                       'technicalTags':'stacks', 'requirement':'job_requirements', 
+                       'preferredExperience':'job_prefer','jobCategoryIds':'job_category', 
+                       'updatedAt':'start_date', 'endAt':'end_date', 'careerRange':'required_career', 
                        'resumeRequired':'resume_required', 'isAppliable':'post_status',
                        'page_url':'crawl_url'}, inplace=True)
     
     return df
 
 
-def upload_data(records):
+def upload_data(records,key,push_table_name):
     """DynamoDB 적제 코드
 
     Args:
@@ -187,31 +166,67 @@ def upload_data(records):
 
 
 def main():
-    flag = 1
-    target_file_list = get_bucket_metadata()
-    obj = target_file_list[-1]
-    try:
-        response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
-        json_context = response['Body'].read().decode('utf-8')
-        cleaned_text = re.sub(r'[\r\u2028\u2029]+', ' ', json_context) # 파싱을 위해 unuseal line terminators 제거
-        json_list = [json.loads(line) for line in cleaned_text.strip().splitlines()] # pandas format으로 맞추기
-        master_df = preprocess_dataframe(pd.DataFrame(json_list))
-        upload_data(master_df.to_dict(orient='records'))
+    flag = 0
 
-        
-        
-    except JSONDecodeError as e:
-        logging.error(f"JSONDecodeError encountered: {e}")
-        flag = 0
-    except ClientError as e:
-        logging.error(f"ClientError encountered: {e}")
-        flag = 0
-    except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
-        flag = 0
+    # S3 client 생성에 필요한 보안 자격 증명 정보 get
+    with open("./.KEYS/API_KEYS.json", "r") as f:
+    # with open("./API_KEYS.json", "r") as f:
+        key = json.load(f)
 
+    # S3 버킷 정보 get
+    with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
+    # with open("./DATA_SRC_INFO.json", "r") as f:
+        bucket_info = json.load(f)
+        
+    # S3 섹션 및 client 생성
+    session = boto3.Session(
+        aws_access_key_id=key['aws_access_key_id'],
+        aws_secret_access_key=key['aws_secret_key'],
+        region_name=key['region']
+    )
+    s3 = session.client('s3')
+
+    # S3 버킷 정보 init
+    pull_bucket_name = bucket_info['pull_bucket_name']
+    dump_bucket_name = bucket_info['dump_bucket_name']
+    push_table_name = bucket_info['restore_table_name']
+    target_folder_prefix = bucket_info['target_folder_prefix']['programmers_path']
+
+    kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
+
+    data_list = get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix)
+    # meatadata_list[0] is directory path so ignore this item
+    # copy files in crawl-data-lake to 
+    all_df = pd.DataFrame()
+    error_data_list = []
+    for obj in data_list[1:]:
+        try:
+            response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
+            s3.copy({"Bucket":pull_bucket_name,"Key":obj['Key']}, dump_bucket_name, obj['Key']) # 덤프 버킷으로 파일 복사
+            s3.delete_object(Bucket=pull_bucket_name,Key=obj['Key']) # 원본 버킷에서 파일 삭제
+            
+            json_context = response['Body'].read().decode('utf-8')
+            cleaned_text = re.sub(r'[\r\u2028\u2029]+', ' ', json_context) # 파싱을 위해 unuseal line terminators 제거
+            json_list = [json.loads(line) for line in cleaned_text.strip().splitlines()] # pandas format으로 맞추기
+            
+            master_df = preprocess_dataframe(pd.DataFrame(json_list))
+            if len(master_df): # 처리 완료시 dynamoDB에 적제
+                upload_data(master_df.to_dict(orient='records'),key,push_table_name)
+            
+            
+        except Exception as e:
+            logging.error(f"'{obj['Key']}' went wrong: {e}")
+            error_data_list.append({obj['Key']})
+            s3.copy({"Bucket":dump_bucket_name, "Key":obj["Key"]}, pull_bucket_name,obj["Key"]) # 문제 데이터 다시 s3에 적제
+            flag = 1
+            continue
+    
+        
+    print("Data successfully uploaded to DynamoDB")
     if flag:
-        print("Data successfully uploaded to DynamoDB")
+        print("except: ")
+        for a in error_data_list:
+            print(a)
         
 
 if __name__ == '__main__':

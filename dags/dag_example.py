@@ -4,6 +4,7 @@ from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import Kubernete
 from airflow.operators.bash import BashOperator
 from kubernetes.client import models as k8s
 from datetime import datetime, timedelta
+from airflow.models.variable import Variable
 
 default_args = {
     'owner': 'airflow',
@@ -53,17 +54,20 @@ with DAG(
     process_api_request = PythonOperator(
         task_id='process_api_request',
         python_callable=process_api_request,
-        op_kwargs={'api_params': {'param1': 'value1', 'param2': 'value2'}}
+        op_kwargs={'api_params': {'param1': 'value1', 'param2': 'value2'}},
+        dag=dag
     )
     
     run_script = KubernetesPodOperator(
-        namespace='airflow',
-        image='apache/airflow:2.9.3',
-        cmds=["/mnt/data/airflow/venv/bin/python", "/mnt/data/airflow/testers/test.py"],
-        name='run-script',
         task_id='run_script_from_pvc',
+        namespace='airflow',
+        image='ghcr.io/abel3005/first_preprocessing:latest',
+        cmds=["/bin/bash", "-c"],
+        args=["/mnt/data/airflow/venv/bin/python", "/mnt/data/airflow/testers/test.py"],
+        name='run-script',
         volume_mounts=[volume_mount],
-        volumes=[volume]
+        volumes=[volume],
+        dag=dag
     )
     
     process_api_request >> run_script
