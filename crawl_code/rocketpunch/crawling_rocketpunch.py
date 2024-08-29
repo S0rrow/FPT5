@@ -76,7 +76,8 @@ def parse_page(soup):
 # company_id를 통해서 html 내용 파싱
 def parse_job_page(data, headers):
     job_url = 'https://www.rocketpunch.com/jobs/{}'
-    pattern = re.compile(r'\d{4}-\d{2}-\d{2}')
+    pattern = re.compile('[ㄱ-힣]+')
+    current_year = datetime.datetime.now().year
     
     try:
         for job in data:
@@ -85,17 +86,22 @@ def parse_job_page(data, headers):
             job['job_url'] = job_url.format(job['job_id'])
             
             # 채용 시작일/만료일 : date_start, date_end
-            deadline_div = soup.find('div', class_='title', text='마감일').find_next('div', class_='content').get_text(strip=True)
-            if not pattern.match(deadline_div):
-                job['date_end'] = None
-            else:
-                job['date_end'] = deadline_div
+            job_date = soup.find('div', class_='job-dates')
+            date_span = job_date.find_all('span') if job_date else []
+            only_date_span = [re.sub(pattern, '', span.text) for span in date_span]
             
-            start_div = soup.find('div', class_='title', text='등록일')
-            if not start_div:
-                job['date_start'] = soup.find('div', class_='title', text='수정일').find_next_sibling('div').get_text(strip=True)
-            else:
-                job['date_start'] = start_div.find_next_sibling('div').get_text(strip=True)
+            valid_date = []
+            for mmdd in only_date_span:
+                mmdd = mmdd.strip()
+                if mmdd == "" :
+                    valid_date.append('Null')
+                else:
+                    date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd.strip()}', '%Y/%m/%d')
+                    formatted_date = date_obj.strftime('%Y.%m.%d')
+                    valid_date.append(formatted_date)
+                
+            job['date_end'] = valid_date[0]
+            job['date_start'] = valid_date[-1]
             
             # 주요 업무(업무 내용) : job_task
             job_task_div = soup.find('div', class_='duty break')

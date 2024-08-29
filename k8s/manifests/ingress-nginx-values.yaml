@@ -1,7 +1,0 @@
-controller:
-  service:
-    type: NodePort
-    nodePorts:
-      http: 31080
-      https: 30443
-

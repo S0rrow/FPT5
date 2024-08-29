@@ -1,49 +1,75 @@
+# from airflow import DAG
+# from airflow.operators.dummy_operator import DummyOperator
+# from airflow.operators.python import PythonOperator
+# from airflow.operators.bash import BashOperator
+# from datetime import datetime, timedelta
+
+# default_args = {
+#     'owner': 'airflow',
+#     'depends_on_past': False,
+#     # 'start_date': datetime(2023, 8, 7),
+#     'email_on_failure': False,
+#     'email_on_retry': False,
+#     'retries': 1,
+#     'retry_delay': timedelta(minutes=5),
+# }
+
+# def run_ssh_command(command):
+#     ssh_command = f'ssh hadoop@node3 \"{command}\"'
+    
+#     try:
+#         result = subprocess.run(ssh_command, shell=True, check=True, capture_output=True)
+#         print("SSH command output:", result.stdout.decode('utf-8'))
+#         return result.stdout.decode('utf-8')
+#     except subprocess.CalledProcessError as e:
+#         print("Error executing SSH command:", e)
+#         raise
+
+# with DAG(
+#     'programmers_crawler',
+#     default_args=default_args,
+#     description='A crawling DAG that runs every day at 11 PM',
+#     schedule_interval='0 23 * * *',  # Cron expression for 11 PM daily
+# ) as dag:
+
+#     start = DummyOperator(
+#         task_id='execute_python_file',
+#         python_callable=run_ssh_command,
+#         op_args=['source ~/.bashrc && ~/home/team3/miniconda3/bin/python ~/repository/airflow_test/app.py']
+
+#     )
+
+
+# start
+
+
+
+
 from airflow import DAG
-from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from airflow.operators.bash import BashOperator
-from kubernetes.client import models as k8s
-from airflow.utils.dates import days_ago
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
+    'start_date': datetime(2023, 1, 1),
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
 
-volume_mount = k8s.V1VolumeMount(
-    name="airflow-worker-pvc",
-    mount_path="/mnt/data/airflow",
-    sub_path=None,
-    read_only=False
-)
-
-volume = k8s.V1Volume(
-    name="airflow-worker-pvc",
-    persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-worker-pvc"),
-)
-
-with DAG(
-    dag_id='programmers_preprocessing',
+dag = DAG(
+    'test_from_psw',
     default_args=default_args,
-    description="activate dag every 11'o KST to preprocess jobkorea crawl data",
-    schedule_interval='0 11 * * *',
-    start_date=days_ago(1),
-    catchup=False,
-) as dag:
+    description='Run main.py every day at 11 PM',
+    schedule_interval='0 * * * *',
+)
 
-    first_preprocessing = KubernetesPodOperator(
-        task_id='first_preprocessing_programmers',
-        namespace='airflow',
-        image='ghcr.io/abel3005/first_preprocessing:latest',
-        cmds=["/bin/bash", "-c"],
-        arguments=["sh /mnt/data/airflow/programmers_preprocessing/runner.sh"],
-        name='first_preprocessing_programmers',
-        volume_mounts=[volume_mount],
-        volumes=[volume],
-        dag=dag,
-    )
-    first_preprocessing
+run_script = BashOperator(
+    task_id='testing',
+    bash_command='date >> time.txt && pwd >> time.txt && cat time.txt',
+    dag=dag,
+)
+
+run_script
