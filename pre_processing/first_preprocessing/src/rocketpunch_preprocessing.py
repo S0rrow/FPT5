@@ -42,7 +42,6 @@ def import_bucket(key, bucket_info):
     s3 = session.client('s3')
     
     response = s3.list_objects_v2(Bucket=pull_bucket_name, Prefix='rocketpunch')
-    print(f'response: {response}')
     if 'Contents' not in response:
         print("No objects found in the folder.")
         return None
@@ -85,7 +84,6 @@ def import_bucket(key, bucket_info):
 def preprocessing(df, key):
     print("preprocessing start")
     for i, data in df.iterrows() :
-        print(data)
         processing_dict = {}
         # rocketpunch key > merged key
         # job_task > job_tasks
@@ -112,6 +110,8 @@ def preprocessing(df, key):
             date_end = datetime.datetime.strptime(data['date_end'], "%Y.%m.%d")
             date_end_stp = int(date_end.timestamp())
             processing_dict['end_date'] = date_end_stp
+        else:
+            processing_dict['end_date'] = 'null'
         
         # job_career > required_career
         processing_dict['required_career'] = any(career in "신입" for career in data['job_career'])

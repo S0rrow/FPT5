@@ -5,6 +5,8 @@ from airflow.operators.bash import BashOperator
 from kubernetes.client import models as k8s
 from datetime import datetime, timedelta
 from airflow.models.variable import Variable
+from airflow.exceptions import AirflowException
+import logging
 
 default_args = {
     'owner': 'airflow',
@@ -27,21 +29,24 @@ volume = k8s.V1Volume(
 )
 
 def process_api_request(**context):
-    # API 요청에서 전달된 파라미터 가져오기
-    dag_run = context['dag_run']
-    api_params = dag_run.conf if dag_run and dag_run.conf else {}
-    
-    # 파라미터 처리 로직
-    param1 = api_params.get('param1', 'default_value')
-    param2 = api_params.get('param2', 'default_value')
-    
-    # 처리된 파라미터를 Variable로 저장
-    Variable.set("param1", param1)
-    Variable.set("param2", param2)
-    
-    print(f"Received parameters: param1={param1}, param2={param2}")
-    return "API request processed successfully"
-
+    try:
+        dag_run = context.get('dag_run')
+        if dag_run and dag_run.conf:
+            api_params = dag_run.conf
+        else:
+            api_params = {}
+        
+        param1 = api_params.get('param1', 'default_value')
+        param2 = api_params.get('param2', 'default_value')
+        
+        Variable.set("param1", param1)
+        Variable.set("param2", param2)
+        
+        logging.info(f"Received parameters: param1={param1}, param2={param2}")
+        return "API request processed successfully"
+    except Exception as e:
+        logging.error(f"Error processing API request: {str(e)}")
+        raise AirflowException("Failed to process API request")
 
 with DAG(
     dag_id='run_script_from_pvc_dag',
@@ -54,7 +59,7 @@ with DAG(
     process_api_request = PythonOperator(
         task_id='process_api_request',
         python_callable=process_api_request,
-        op_kwargs={'api_params': {'param1': 'value1', 'param2': 'value2'}},
+        provide_context=True,
         dag=dag
     )
     
@@ -63,10 +68,13 @@ with DAG(
         namespace='airflow',
         image='ghcr.io/abel3005/first_preprocessing:latest',
         cmds=["/bin/bash", "-c"],
-        args=["/mnt/data/airflow/venv/bin/python", "/mnt/data/airflow/testers/test.py"],
+        arguments=["/mnt/data/airflow/venv/bin/python /mnt/data/airflow/testers/test.py"],
         name='run-script',
         volume_mounts=[volume_mount],
         volumes=[volume],
+        image_pull_policy='Always',  # 항상 최신 이미지를 가져오도록 설정
+        is_delete_operator_pod=True,  # 작업 완료 후 pod 삭제
+        get_logs=True,  # 로그 가져오기
         dag=dag
     )
     
