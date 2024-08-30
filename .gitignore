@@ -3,6 +3,7 @@
 __pycache__
 # 보안 문제상 제외 항목
 .KEYS
+.DATA
 API_KEYS
 data
 logs
