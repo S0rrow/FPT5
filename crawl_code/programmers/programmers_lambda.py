@@ -2,7 +2,7 @@ from datetime import datetime
 import pandas as pd
 from bs4 import BeautifulSoup as BS
 import awswrangler as wr
-import requests, json
+import requests, json, boto3
 
 
 def company_code(payload):
@@ -125,14 +125,46 @@ def makedf(payload):
                         'address':address, })
     return df
 
+def send_sqs_message(sqs_url, message):
+    sqs = boto3.client('sqs')
+    try:
+        message_body = json.dumps(message)
+        response = sqs.send_message(
+            QueueUrl=sqs_url,
+            MessageBody=message_body
+        )
+        return response['MessageId']
+    except Exception as e:
+        raise e
+
 def lambda_handler(event, context):
-    crawl_time = datetime.now().strftime("%Y-%m-%d_%H%M")
+    curr_time = datetime.now()
+    crawl_time = curr_time.strftime("%Y-%m-%d_%H%M")
     payload_data = event.get('data', {})
     s3_path = payload_data.get('s3_path')
+    sqs_url = payload_data.get('sqs_url')
+    
+    message = {
+        "status": "SUCCESS",
+        "site_symbol": "PRO",
+        "filePath": f"/wanted/data/{crawl_time}.json",
+        "completionDate": curr_time.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        "message": "Data crawl completed successfully.",
+        "errorDetails": None
+    }
     
     try:
         df = makedf(payload = payload_data)
         wr.s3.to_json(df=df, path=s3_path.format(crawl_time=crawl_time), orient='records', lines=True, force_ascii=False, date_format='iso')
-        return {"statusCode": 200, "body": "Data processed successfully"}
+        send_respone = send_sqs_message(sqs_url, message)
+        return {"statusCode": 200, "body": f"Data processed successfully. SQSMessageId: {str(send_respone)}"}
     except Exception as e:
-       return {"statusCode": 500, "body": f"Error loading offset: {str(e)} "}
+        message['status'] = "FAILURE"
+        message['filePath'] = None
+        message['message'] = "Data crawl failed due to an unspecified error."
+        message['errorDetails'] = {
+            "errorCode": "UNKNOWN_ERROR",
+            "errorMessage": "The crawl process failed unexpectedly."
+        }
+        send_respone = send_sqs_message(sqs_url, message)
+        return {"statusCode": 500, "body": f"Error loading offset: {str(e)} "}

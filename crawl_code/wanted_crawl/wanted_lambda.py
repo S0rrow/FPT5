@@ -53,10 +53,8 @@ def send_sqs_message(sqs_url, message):
             QueueUrl=sqs_url,
             MessageBody=message_body
         )
-        
         return response['MessageId']
     except Exception as e:
-        print("Failed to send message:", str(e))
         raise e
 
 def lambda_handler(event, context):
