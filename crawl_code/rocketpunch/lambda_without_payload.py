@@ -1,8 +1,10 @@
+import requests
 from bs4 import BeautifulSoup as BS
-from datetime import datetime
+import json, boto3
+import time, datetime
+import re
 import pandas as pd
 import awswrangler as wr
-import json, time, re, requests, boto3
 
 # 세션 객체를 전역에서 정의하여 재사용
 session = requests.Session()
@@ -11,9 +13,8 @@ session = requests.Session()
 가장 먼저 실행하는 함수. 
 채용 목록에서 api를 호출
 '''
-def rocketpunch_crawler(payload, header):
-    url = payload.get('page_url')
-    res = session.get(url.format(index=1), headers=header)
+def rocketpunch_crawler(url, headers):
+    res = session.get(url.format(1), headers=headers)
     res = json.loads(res.text)
     soup = BS(res['data']['template'], 'html.parser')
 
@@ -23,7 +24,7 @@ def rocketpunch_crawler(payload, header):
     data = parse_page(soup)
     
     for i in range(2, int(page_size) + 1):
-        res = session.get(url.format(index=i), headers=header)
+        res = session.get(url.format(i), headers=headers)
         res = json.loads(res.text)
         soup = BS(res['data']['template'], 'html.parser')
         data.extend(parse_page(soup))
@@ -40,7 +41,7 @@ company_id, company_name, job_id, description, job_title, job_career
 '''
 def parse_page(soup):
     data_list = []
-    current_timestamp = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+    current_timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     
     companies = soup.find_all('div', {'class': 'company item'})
     
@@ -77,20 +78,33 @@ job_id를 통해서 채용 공고 상세란에서 html 내용 파싱
 date_end, date_start, job_task, job_specialties, job_detail, job_industry
 파싱
 '''
-def parse_job_page(payload, data, header):
-    job_url = payload.get('job_detail_url')
+def parse_job_page(data, headers):
+    job_url = 'https://www.rocketpunch.com/jobs/{}'
     pattern = re.compile('[ㄱ-힣]+')
-    current_year = datetime.now().year
+    current_year = datetime.datetime.now().year
 
     for job in data:
-        res = session.get(job_url.format(id=job['job_id']), headers=header)
+        res = session.get(job_url.format(job['job_id']), headers=headers)
         soup = BS(res.text, 'html.parser')
-        job['job_url'] = job_url.format(id=job['job_id'])
+        job['job_url'] = job_url.format(job['job_id'])
         
         # 채용 시작일/만료일 : date_start, date_end
-        job_date_raw = soup.find('div', class_='ui job-infoset-content items')
-        #
+        job_date = soup.find('div', class_='job-dates')
+        date_span = job_date.find_all('span') if job_date else []
+        only_date_span = [re.sub(pattern, '', span.text) for span in date_span]
         
+        valid_date = []
+        for mmdd in only_date_span:
+            mmdd = mmdd.strip()
+            if mmdd == "" :
+                valid_date.append('Null')
+            else:
+                date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd.strip()}', '%Y/%m/%d')
+                formatted_date = date_obj.strftime('%Y.%m.%d')
+                valid_date.append(formatted_date)
+                
+        job['date_end'] = valid_date[0]
+        job['date_start'] = valid_date[-1]
         
         # 주요 업무(업무 내용) : job_task
         job_task_div = soup.find('div', class_='duty break')
@@ -140,12 +154,12 @@ def send_sqs_message(sqs_url, message):
 
 def lambda_handler(event, context):
     payload = event.get('data', {})
-    s3_path = payload.get('s3_path')
     sqs_url = payload.get('sqs_url')
-    crawl_time = datetime.now().strftime("%Y-%m-%d_%H%M")
+    crawl_time = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36'
     }
+    url = 'https://www.rocketpunch.com/api/jobs/template?page={}&job=1'
     
     message = {
         "status": "SUCCESS",
@@ -157,11 +171,26 @@ def lambda_handler(event, context):
     }
     
     try:
-        data_dic = rocketpunch_crawler(payload=payload, header=headers)
-        detailed_data = parse_job_page(payload=payload, data=data_dic, header=headers) 
-        df = pd.DataFrame(detailed_data)
+        data_dic = rocketpunch_crawler(url, headers)
+        detailed_data = parse_job_page(data_dic, headers)
         
-        wr.s3.to_json(df=df, path=s3_path.format(crawl_time=crawl_time), orient='records', lines=True, force_ascii=False, date_format='iso')
+        ##금일자 새로 올라온 채용공고만 따로 저장
+        mm = datetime.datetime.today().year
+        dd = datetime.datetime.today().month
+    
+        new_hired = []
+        for data in detailed_data :
+            year, month, day = data['date_start'].split('.')
+            if month == mm and day == dd:
+                new_hired.append(data)
+        
+        # 전체 데이터 저장
+        #df = pd.DataFrame(detailed_data)
+        
+        #금일자 데이터 저장
+        df = pd.DataFrame(new_hired)
+        
+        wr.s3.to_json(df=df, path=f"s3://crawl-data-lake/rocketpunch/data/{crawl_time}.json", orient='records', lines=True, force_ascii=False, date_format='iso')
         send_respone = send_sqs_message(sqs_url, message)
         return {"statusCode": 200, "body": f"Data processed successfully. SQSMessageId: {str(send_respone)}"}
     except Exception as e:
