@@ -171,8 +171,10 @@ def main():
             preprocessing(df, key)
         else:
             logging.info('No task for preprocessing.')
+        return True
     except Exception as e:
         logging.error(f"An error occurred in the main function: {e}")
+        return False
 
 if __name__ == "__main__":
     main()

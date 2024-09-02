@@ -1,4 +1,4 @@
-import json, boto3, logging
+import json, boto3, logging, sys
 from farmhash import FarmHash32 as fhash
 from botocore.exceptions import ClientError
 import pandas as pd
@@ -86,8 +86,9 @@ def main():
                 logging.error(f"An unexpected error occurred: {e}")
                 s3.copy({"Bucket":dump_bucket_name, "Key":obj["Key"]}, pull_bucket_name,obj['Key'])
                 continue
+        sys.exit(0)
     else:
-        return False
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
