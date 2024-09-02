@@ -7,7 +7,17 @@ import json, boto3
 
 
 
-client = boto3.client('logs')
+with open("./.KEYS/WATCHER_ACCESS_KEY.json", "r") as f:
+    key = json.load(f)
+with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
+    bucket_info = json.load(f)
+session = boto3.Session(
+    aws_access_key_id=key['aws_access_key_id'],
+    aws_secret_access_key=key['aws_secret_key'],
+    region_name=key['region']
+)
+
+client = session.client('logs')
 
 
 
