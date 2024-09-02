@@ -147,7 +147,7 @@ def lambda_handler(event, context):
     message = {
         "status": "SUCCESS",
         "site_symbol": "PRO",
-        "filePath": f"/wanted/data/{crawl_time}.json",
+        "filePath": f"/programmers/data/{crawl_time}.json",
         "completionDate": curr_time.strftime('%Y-%m-%dT%H:%M:%SZ'),
         "message": "Data crawl completed successfully.",
         "errorDetails": None

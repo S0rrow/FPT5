@@ -1,17 +1,29 @@
 from bs4 import BeautifulSoup
 import pandas as pd
 import awswrangler as wr
-import requests, re
-import pytz
-import time
+import requests, re, json, pytz, time, boto3
 from datetime import datetime
-
 
 def get_time():
     kst_tz = pytz.timezone('Asia/Seoul')
     return datetime.strftime(datetime.now().astimezone(kst_tz),"%Y-%m-%d_%H%M%S")
 
+def send_sqs_message(sqs_url, message):
+    sqs = boto3.client('sqs')
+    try:
+        message_body = json.dumps(message)
+        response = sqs.send_message(
+            QueueUrl=sqs_url,
+            MessageBody=message_body
+        )
+        return response['MessageId']
+    except Exception as e:
+        raise e
+
 def lambda_handler(event, context):
+    payload = event.get('data', {})
+    sqs_url = payload.get('sqs_url')
+
     try:
         bucket_name = 'crawl-data-lake'
         instance = jobkorea()
@@ -20,11 +32,31 @@ def lambda_handler(event, context):
         df = instance.to_dataframe()
         df['crawl_domain'] = "www.jobkorea.co.kr"
         df['get_date'] = export_date
+        
+        message = {
+                "status": "SUCCESS",
+                "site_symbol": "JK",
+                "filePath": f"/jobkorea/data/{export_date}.json",
+                "completionDate": export_date,
+                "message": "Data crawl completed successfully.",
+                "errorDetails": None
+            }
+        
         wr.s3.to_json(df=df, path=f"s3://{bucket_name}/jobkorea/data/{export_date}.json", orient='records', lines=True, force_ascii=False, date_format='iso')
     except Exception as e:
+        message['status'] = "FAILURE"
+        message['filePath'] = None
+        message['message'] = "Data crawl failed due to an unspecified error."
+        message['errorDetails'] = {
+            "errorCode": "UNKNOWN_ERROR",
+            "errorMessage": "The crawl process failed unexpectedly."
+            }
+        
+        send_respone = send_sqs_message(sqs_url, message)
         return {"statusCode": 500, "body": f"Error: {str(e)} "}
     else:
-        return {"statusCode": 200, "body": "Data processed successfully"}
+        send_respone = send_sqs_message(sqs_url, message)
+        return {"statusCode": 200, "body": f"Data processed successfully. SQSMessageId: {str(send_respone)}"}
 
 
 class jobkorea:
