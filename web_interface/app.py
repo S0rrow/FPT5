@@ -27,6 +27,10 @@ def on_click_job_info(logger:Logger):
     logger.log(f"job_info button clicked; session state current view changed to job_informations", name=__name__)
     st.session_state['current_view'] = "job_informations"
 
+# Filter Log Button
+def on_click_filter_log(logger:Logger):
+    logger.log(f"filter_log button clicked; session state current view changed to filter_log", name=__name__)
+    st.session_state['current_view'] = "filter_log"
 
 def main():
     ### initial configurations
@@ -77,6 +81,8 @@ def main():
                 st.button("Job Informations :material/search:", on_click=on_click_job_info, kwargs={"logger":logger}, use_container_width=True)
                 st.write("Account")
                 st.button("Login :material/login:", on_click=on_click_login, kwargs={"logger":logger}, use_container_width=True)
+                st.write("History")
+                st.button("History :material/history:", on_click=on_click_filter_log, kwargs={"logger":logger}, use_container_width=True)
             else:
                 st.write("Home")
                 st.button("Home :material/home:", on_click=on_click_home, kwargs={"logger":logger}, use_container_width=True)
@@ -84,6 +90,8 @@ def main():
                 st.button("Job Informations :material/search:", on_click=on_click_job_info, kwargs={"logger":logger}, use_container_width=True)
                 st.write("Account")
                 st.button("User Information :material/person:", on_click=on_click_user_info, kwargs={"logger":logger}, use_container_width=True)
+                st.write("History")
+                st.button("History :material/history:", on_click=on_click_filter_log, kwargs={"logger":logger}, use_container_width=True)
         logger.log(f"flag #{flag} | sidebar loaded", name=__name__)
         
         
@@ -99,12 +107,14 @@ def main():
             
         elif st.session_state.get('current_view') == "job_informations":
             logger.log(f"flag #{flag} | displaying job_informations page", name=__name__)
-            views.display_job_informations(logger, url="http://127.0.0.1:8050/test")
+            views.display_job_informations(logger, url="http://127.0.0.1:8000/test")
             
         elif st.session_state.get('current_view') == "user_information":
             logger.log(f"flag #{flag} | displaying user_information page", name=__name__)
             views.display_user_information(logger, authenticator)
-            
+        elif st.session_state.get('current_view') == "filter_log":
+            logger.log(f"flag #{flag} | displaying filter_log page", name=__name__)
+            views.display_filter_log(logger)
         else:
             logger.log(f"flag #{flag} | session state not correctly set; plz check logic flow", name=__name__, flag=1)
             views.display_error_page(logger)
