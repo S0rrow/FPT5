@@ -10,9 +10,7 @@ import re
 import os, sys
 
 import logging
-parent_dir = ""
-sys.path.append(parent_dir)
-from logging_utils import logging_to_cloudwatch as ltc
+import logging_to_cloudwatch as ltc
 
     
 logger = ltc.log('/aws/preprocessing/programmers-first','programmers_logs')
