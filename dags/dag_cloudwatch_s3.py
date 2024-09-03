@@ -47,7 +47,6 @@ with DAG(
         volumes=[volume],
         dag=dag,
         trigger_rule='all_success',  # first_preprocessing이 성공했을 때만 실행
-        dag=dag
     )
     
     send_log 
