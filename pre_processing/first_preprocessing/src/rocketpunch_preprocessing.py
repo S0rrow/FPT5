@@ -3,7 +3,7 @@ import pandas as pd
 import pytz
 import boto3
 import json
-import os
+import os, sys
 import datetime
 from json.decoder import JSONDecodeError
 from botocore.exceptions import ClientError
@@ -171,8 +171,10 @@ def main():
             preprocessing(df, key)
         else:
             logging.info('No task for preprocessing.')
+        sys.exit(0)
     except Exception as e:
         logging.error(f"An error occurred in the main function: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
