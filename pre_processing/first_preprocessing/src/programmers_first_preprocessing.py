@@ -3,14 +3,20 @@ from json import JSONDecodeError
 from botocore.exceptions import ClientError
 from farmhash import FarmHash32 as fhash
 
-# from utils import get_curr_kst_time, set_kst_timezone
-
 import json, boto3, datetime, pytz
 import pandas as pd
-import logging
 import requests
 import re
-import os
+import os, sys
+
+import logging
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(parent_dir)
+from logging_utils import logging_to_cloudwatch as ltc
+
+    
+logger = ltc.log('/aws/lambda/crawler-programer','programers_logs')
+
 
 
 
@@ -72,7 +78,7 @@ else:
     job_category_json = r.json()
     
     # 가져온 데이터를 파일로 저장
-    with open(file_path, "w", encoding='utf-8', ensure_ascii=False) as f:
+    with open(file_path, "w") as f:
         json.dump(job_category_json, f)
 
 # JSON 데이터를 DataFrame으로 변환
@@ -92,7 +98,7 @@ def tagid_to_tagname(tags, job_table):
 
 
 def preprocess_dataframe(tmpdf):
-    
+    logger.info("Start proprocess_dataframe")
     df = tmpdf.copy()
     
     # description 전처리
@@ -143,6 +149,7 @@ def preprocess_dataframe(tmpdf):
                        'resumeRequired':'resume_required', 'isAppliable':'post_status',
                        'page_url':'crawl_url'}, inplace=True)
     
+    logger.info("All done proprocess_dataframe")
     return df
 
 
@@ -166,7 +173,6 @@ def upload_data(records,key,push_table_name):
 
 
 def main():
-    flag = 0
 
     # S3 client 생성에 필요한 보안 자격 증명 정보 get
     with open("./.KEYS/API_KEYS.json", "r") as f:
@@ -199,6 +205,7 @@ def main():
     # copy files in crawl-data-lake to 
     all_df = pd.DataFrame()
     error_data_list = []
+    logger.info("Start loading data to DynamoDB")
     for obj in data_list[1:]:
         try:
             response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
@@ -215,14 +222,13 @@ def main():
             
             
         except Exception as e:
-            logging.error(f"'{obj['Key']}' went wrong: {e}")
+            logger.error(f"'{obj['Key']}' went wrong: {e}")
             error_data_list.append({obj['Key']})
             s3.copy({"Bucket":dump_bucket_name, "Key":obj["Key"]}, pull_bucket_name,obj["Key"]) # 문제 데이터 다시 s3에 적제
             flag = 1
             continue
     
-        
-    print("Data successfully uploaded to DynamoDB")
+    logger.info("Data successfully uploaded to DynamoDB")
     if flag:
         print("except: ")
         for a in error_data_list:
@@ -230,5 +236,11 @@ def main():
         
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+        sys.exit(0)  # 정상 종료
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        logger.error(f"An error occurred: {str(e)}")
+        sys.exit(1)  # 비정상 종료
 

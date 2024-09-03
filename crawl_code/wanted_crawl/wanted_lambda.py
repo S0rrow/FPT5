@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import pandas as pd
 import awswrangler as wr
-import requests, json
+import requests, json, boto3
 
 def current_time_in_milliseconds():
     now = datetime.now(timezone.utc)
@@ -45,6 +45,18 @@ def get_positions_info(url_positions, url_detail, limit, offset_max):
         positions_data += [d for d in details if d is not None]
     return positions_data
 
+def send_sqs_message(sqs_url, message):
+    sqs = boto3.client('sqs')
+    try:
+        message_body = json.dumps(message)
+        response = sqs.send_message(
+            QueueUrl=sqs_url,
+            MessageBody=message_body
+        )
+        return response['MessageId']
+    except Exception as e:
+        raise e
+
 def lambda_handler(event, context):
     bucket_name = 'crawl-data-lake'
     
@@ -54,6 +66,7 @@ def lambda_handler(event, context):
         wanted_detail_url = payload.get('detail_url')
         limit = payload.get('limit')
         offset_max = payload.get('offset_max')
+        sqs_url = payload.get('sqs_url')
     
         data = get_positions_info(url_positions=wanted_positions_url, url_detail=wanted_detail_url, limit=limit, offset_max=offset_max)
     
@@ -61,16 +74,33 @@ def lambda_handler(event, context):
             curr_date = datetime.now()
             export_date = curr_date.strftime("%Y-%m-%d_%H%M%S")
             new_order = ['position', 'tasks', 'requirements', 'prefer', 'due_date', 'job_id', 'company_id', 'company_name', 'crawl_domain', 'get_date']
-    
+            message = {
+                "status": "SUCCESS",
+                "site_symbol": "WAN",
+                "filePath": f"/wanted/data/{export_date}.json",
+                "completionDate": curr_date.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                "message": "Data crawl completed successfully.",
+                "errorDetails": None
+            }
+            
             df = pd.DataFrame(data)
             df['crawl_domain'] = "www.wanted.co.kr"
             df['get_date'] = int(curr_date.timestamp())
             df = df[new_order]
             wr.s3.to_json(df=df, path=f"s3://{bucket_name}/wanted/data/{export_date}.json", orient='records', lines=True, force_ascii=False, date_format='iso')
+            send_respone = send_sqs_message(sqs_url, message)
         except Exception as e:
+            message['status'] = "FAILURE"
+            message['filePath'] = None
+            message['message'] = "Data crawl failed due to an unspecified error."
+            message['errorDetails'] = {
+                "errorCode": "UNKNOWN_ERROR",
+                "errorMessage": "The crawl process failed unexpectedly."
+            }
+            send_respone = send_sqs_message(sqs_url, message)
             return {"statusCode": 500, "body": f"Error processing data: {str(e)}"}
-    
-        return {"statusCode": 200, "body": "Data processed successfully"}
+
+        return {"statusCode": 200, "body": f"Data processed successfully. SQSMessageId: {str(send_respone)}"}
 
     except Exception as e:
         return {"statusCode": 500, "body": f"Error loading offset: {str(e)} "}

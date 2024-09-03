@@ -6,6 +6,7 @@ from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 import json, boto3
 
 
+
 with open("./.KEYS/WATCHER_ACCESS_KEY.json", "r") as f:
     key = json.load(f)
 with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:

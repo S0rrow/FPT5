@@ -1,8 +1,10 @@
+import requests
 from bs4 import BeautifulSoup as BS
+import json, boto3
 import time, datetime
+import re
 import pandas as pd
 import awswrangler as wr
-import json, re, requests, boto3
 
 # 세션 객체를 전역에서 정의하여 재사용
 session = requests.Session()
@@ -152,7 +154,6 @@ def send_sqs_message(sqs_url, message):
 
 def lambda_handler(event, context):
     payload = event.get('data', {})
-    s3_path = payload.get('s3_path')
     sqs_url = payload.get('sqs_url')
     crawl_time = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
     headers = {
@@ -204,4 +205,3 @@ def lambda_handler(event, context):
         return {"statusCode": 500, "body": f"Error loading offset: {str(e)} "}
    
 session.close()
-
