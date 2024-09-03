@@ -53,7 +53,7 @@ def delete_message_from_sqs(**context):
     #     print("No ReceiptHandle found, skipping message deletion.")
 
 with DAG(
-    dag_id='wanted_preprocessing',
+    dag_id='wanted_first_preprocessing',
     default_args=default_args,
     description="activate dag when lambda crawler sended result message.",
     start_date=days_ago(1),

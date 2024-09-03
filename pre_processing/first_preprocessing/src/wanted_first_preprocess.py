@@ -86,9 +86,9 @@ def main():
                 logging.error(f"An unexpected error occurred: {e}")
                 s3.copy({"Bucket":dump_bucket_name, "Key":obj["Key"]}, pull_bucket_name,obj['Key'])
                 continue
-        sys.exit(0)
+        sys.exit(0) # return True
     else:
-        sys.exit(1)
+        sys.exit(1) # return False
 
 if __name__ == '__main__':
     main()
