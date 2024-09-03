@@ -5,6 +5,7 @@ from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 # client = boto3.client('logs', region_name='ap-northeast-2')  # 서울 리전
 import json, boto3
 
+
 with open("./.KEYS/WATCHER_ACCESS_KEY.json", "r") as f:
     key = json.load(f)
 with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
