@@ -10,7 +10,7 @@ import re
 import os, sys
 
 import logging
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+parent_dir = ""
 sys.path.append(parent_dir)
 from logging_utils import logging_to_cloudwatch as ltc
 
@@ -204,7 +204,7 @@ def main():
     # copy files in crawl-data-lake to 
     all_df = pd.DataFrame()
     error_data_list = []
-    logger.info("Start loading data to DynamoDB")
+    logger.info(f"Start loading data(len: {len(data_list)}) to DynamoDB")
     for obj in data_list[1:]:
         try:
             response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
@@ -224,19 +224,15 @@ def main():
             logger.error(f"'{obj['Key']}' went wrong: {e}")
             error_data_list.append({obj['Key']})
             s3.copy({"Bucket":dump_bucket_name, "Key":obj["Key"]}, pull_bucket_name,obj["Key"]) # 문제 데이터 다시 s3에 적제
-            flag = 1
             continue
     
     logger.info("Data successfully uploaded to DynamoDB")
-    if flag:
-        print("except: ")
-        for a in error_data_list:
-            print(a)
         
 
 if __name__ == '__main__':
     try:
         main()
+        print("All done properly!!")
         sys.exit(0)  # 정상 종료
     except Exception as e:
         print(f"An error occurred: {str(e)}")
