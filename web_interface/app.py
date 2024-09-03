@@ -74,6 +74,7 @@ def main():
         ### sidebar configuration
         flag = 3
         with st.sidebar:
+            ### if not logged in
             if not st.session_state.get('connected', False):
                 st.write("Home")
                 st.button("Home :material/home:", on_click=on_click_home, kwargs={"logger":logger}, use_container_width=True)
@@ -83,6 +84,7 @@ def main():
                 st.button("Login :material/login:", on_click=on_click_login, kwargs={"logger":logger}, use_container_width=True)
                 st.write("History")
                 st.button("History :material/history:", on_click=on_click_filter_log, kwargs={"logger":logger}, use_container_width=True)
+            ## if logged in
             else:
                 st.write("Home")
                 st.button("Home :material/home:", on_click=on_click_home, kwargs={"logger":logger}, use_container_width=True)
@@ -107,7 +109,7 @@ def main():
             
         elif st.session_state.get('current_view') == "job_informations":
             logger.log(f"flag #{flag} | displaying job_informations page", name=__name__)
-            views.display_job_informations(logger, url="http://127.0.0.1:8000/test")
+            views.display_job_informations(logger, url="http://127.0.0.1:8000")
             
         elif st.session_state.get('current_view') == "user_information":
             logger.log(f"flag #{flag} | displaying user_information page", name=__name__)
@@ -121,7 +123,6 @@ def main():
             
         logger.log(f"flag #{flag} | display functions loaded", name=__name__)
     
-        
     except Exception as e:
         logger.log(f"Exception occurred at flag #{flag}: {e}", flag=1, name=__name__)
         
