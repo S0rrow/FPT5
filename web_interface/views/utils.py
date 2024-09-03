@@ -1,6 +1,8 @@
 import os, pytz
 from datetime import datetime, timezone, timedelta
 
+parent_path = os.path.dirname(os.path.abspath(__file__))
+
 class Logger():
     '''
         Logger for generating log messages given in string format to files under given path.
@@ -8,10 +10,11 @@ class Logger():
         - options: logger options getting inputs in dictionary format
             - name(optional): name of source logger is running at. if not set, will call __name__ variable of utils.py
     '''
-    path = None
+    path = None 
     options = None
-
-    def __init__(self, options:dict=None, path="./logs"):
+    
+    # if current path is ./views, than path is ../logs
+    def __init__(self, options:dict=None, path=f"{parent_path}/../logs"):
         self.path = path
         self.options = options
 

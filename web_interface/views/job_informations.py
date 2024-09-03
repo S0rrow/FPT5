@@ -4,6 +4,8 @@ import json, requests, ast, base64
 import matplotlib.pyplot as plt
 from collections import Counter
 from datetime import datetime
+from .utils import Logger
+event_logger = Logger(options={"name":__name__}, path="../logs/events")
 
 def load_config(config_path:str='config.json'):
     with open(config_path, 'r') as f:
@@ -26,6 +28,19 @@ def get_search_history(endpoint:str, session_id:str, logger)->pd.DataFrame:
     else:
         logger.log(f"Exception occurred while retrieving search history: {history_response}", flag=1, name=__name__)
         return None
+    
+def filter_search_history(search_history:pd.DataFrame, logger:Logger, connected:bool=False)->pd.DataFrame:
+    '''
+        Filter search history with connected status.
+        If connected is False, return search history according to the session id.
+        If connected is True, return according to user_id.
+        - search_history: search history to filter
+        - logger: logger to log the exception
+        - connected: connected status
+    '''
+    if connected:
+        return search_history
+        
 
 def save_search_history(endpoint:str, session_id:str, search_history:dict, timestamp:str, logger)->bool:
     '''
@@ -84,34 +99,39 @@ def plot_pie_chart(stack_counts):
     ax.axis('equal')
     st.subheader("Tech Stacks as Pie Chart")
     st.pyplot(fig)
+    event_logger.log(f"display,pie_chart",flag=4,name=__name__)
     
 def plot_donut_chart(stack_counts):
     fig, ax = plt.subplots()
     ax.pie(stack_counts.values(), labels=stack_counts.keys(), autopct='%1.1f%%', startangle=90, wedgeprops=dict(width=0.4))
     ax.axis('equal')
     st.pyplot(fig)
-    
+    event_logger.log(f"display,donut_chart",flag=4,name=__name__)
+
 def plot_histogram(stack_counts):
     fig, ax = plt.subplots()
     ax.hist(list(stack_counts.values()), bins=10)
     plt.xlabel("Stack Count")
     plt.ylabel("Frequency")
     st.pyplot(fig)
-
+    event_logger.log(f"display,histogram",flag=4,name=__name__)
+    
 def plot_bar_chart(stack_counts):
     fig, ax = plt.subplots()
     ax.bar(stack_counts.keys(), stack_counts.values())
     plt.xticks(rotation=45, ha='right')
     st.subheader("Tech Stacks as Bar Chart")
     st.pyplot(fig)
-
+    event_logger.log(f"display,bar_chart",flag=4,name=__name__)
+    
 def plot_horizontal_bar_chart(stack_counts):
     fig, ax = plt.subplots()
     ax.barh(list(stack_counts.keys()), list(stack_counts.values()))
     plt.xticks(rotation=45, ha='right')
     st.subheader("Tech Stacks as Horizontal Bar Chart")
     st.pyplot(fig)
-
+    event_logger.log(f"display,horizontal_bar_chart",flag=4,name=__name__)
+    
 def display_filters(df:pd.DataFrame, search_history:pd.DataFrame, logger)->pd.DataFrame:
     '''
     Generate filters for each column in the dataframe.
@@ -155,6 +175,7 @@ def display_filters(df:pd.DataFrame, search_history:pd.DataFrame, logger)->pd.Da
                 selected_stacks = st.multiselect(f"Select {column}", unique_stacks, default=default_filter)
                 if selected_stacks:
                     filtered_df = filtered_df[filtered_df['stacks'].apply(lambda x: any(stack in ast.literal_eval(x) for stack in selected_stacks))]
+                    event_logger.log(f"filter,stacks",flag=4,name=__name__)
                 latest_search_term[column] = selected_stacks
             ### if column is not 'stacks', show unique values in multiselect
             elif df[column].dtype == 'object':
@@ -169,6 +190,7 @@ def display_filters(df:pd.DataFrame, search_history:pd.DataFrame, logger)->pd.Da
                     default_filter = []
                 selected_values = st.multiselect(f"Select {column}", unique_values, default=default_filter)
                 if selected_values:
+                    event_logger.log(f"filter,{column}",flag=4,name=__name__)
                     if 'None' in selected_values:
                         filtered_df = filtered_df[(filtered_df[column].isin([v for v in selected_values if v != 'None'])) | (filtered_df[column].isna())]
                     else:
@@ -188,6 +210,7 @@ def display_filters(df:pd.DataFrame, search_history:pd.DataFrame, logger)->pd.Da
                     selected_range = st.slider(f"Select {column} range", min_value, max_value, default_range)
                     filtered_df = filtered_df[(filtered_df[column] >= selected_range[0]) & (filtered_df[column] <= selected_range[1])]
                     latest_search_term[column] = selected_range
+                    event_logger.log(f"filter,{column}",flag=4,name=__name__)
             ### if column is 'start_date' or 'end_date', show date range in date picker
             elif column in ['start_date', 'end_date']:
                 if st.session_state['apply_last_filter']:
@@ -198,7 +221,7 @@ def display_filters(df:pd.DataFrame, search_history:pd.DataFrame, logger)->pd.Da
                 selected_range = st.date_input(f"Select {column} range", value=default_range)
                 filtered_df = filtered_df[(filtered_df[column] >= selected_range[0]) & (filtered_df[column] <= selected_range[1])]
                 latest_search_term[column] = selected_range
-
+                event_logger.log(f"filter,{column}",flag=4,name=__name__)
         logger.log(f"Filters applied successfully", name=__name__)
         return filtered_df, latest_search_term
     except Exception as e:
@@ -220,10 +243,6 @@ def display_job_informations(logger, url:str=None, database:str=None, query:str=
             query = f"SELECT * from {config.get('TABLE')}"
         if not database:
             database = config.get("DATABASE")
-            
-        # 세션 상태에 'apply_last_filter'가 없으면 초기화
-        if 'apply_last_filter' not in st.session_state:
-            st.session_state['apply_last_filter'] = False
         
         logger.log(f"url:{url}, query:{query}, database:{database}", name=__name__)
         st.title("Job Information - Tech Stack Visualizations")
@@ -233,11 +252,6 @@ def display_job_informations(logger, url:str=None, database:str=None, query:str=
         ### test endpoint로부터 데이터프레임 받아오기
         endpoint_test = f"{url}/test"
         df = _get_dataframe_(logger, endpoint_test, database, query)
-        
-        # 세션 ID 생성 (예: 현재 시간을 사용)
-        if 'session_id' not in st.session_state:
-            # encode session_id as string of current timestamp with base64
-            st.session_state['session_id'] = base64.b64encode(str(datetime.now().timestamp()).encode()).decode()
         
         ### 세션 ID를 사용하여 검색 기록 받아오기
         endpoint_history = f"{url}/history"
@@ -254,6 +268,7 @@ def display_job_informations(logger, url:str=None, database:str=None, query:str=
         
         ### show raw dataframe
         if st.checkbox('Show raw data'):
+            event_logger.log(f"checkbox,raw_data",flag=4,name=__name__)
             st.subheader("Raw data")
             st.dataframe(df, use_container_width=True)
 
@@ -261,12 +276,14 @@ def display_job_informations(logger, url:str=None, database:str=None, query:str=
         show_filters = st.checkbox("필터 옵션 표시", value=False)
 
         if show_filters:
+            event_logger.log(f"checkbox,filters",flag=4,name=__name__)
             filtered_df, current_filter = display_filters(df, search_history, logger)
             filter_btn = st.button("필터 적용")
             reset_filter_btn = st.button("필터 초기화")
             col1, col2 = st.columns([2, 1])
             with col1:
                 if filter_btn:
+                    event_logger.log(f"button,filter_apply",flag=4,name=__name__)
                     # 필터 로그 저장
                     save_history_response = requests.post(f"{url}/history", json={
                         "session_id": st.session_state['session_id'],
@@ -281,6 +298,7 @@ def display_job_informations(logger, url:str=None, database:str=None, query:str=
                     visualized_df = filtered_df.copy()
             with col2:
                 if reset_filter_btn:
+                    event_logger.log(f"button,filter_reset",flag=4,name=__name__)
                     st.session_state['apply_last_filter'] = False
                     visualized_df = df.copy()
 

@@ -1,6 +1,7 @@
 import streamlit as st
+from .utils import Logger
 
-def display_home_page(logger):
+def display_home_page(logger:Logger):
     '''
     show initial page before login
     '''

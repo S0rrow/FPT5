@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import pandas as pd
 from sqlalchemy import create_engine, text
-from utils import Logger
+from views.utils import Logger
 from datetime import datetime
 
 parent_path = os.path.dirname(os.path.abspath(__file__))
@@ -16,18 +16,24 @@ class QueryCall(BaseModel):
     
 class SessionCall(BaseModel):
     session_id: str
+    user_id: str
 
 class SearchHistory(BaseModel):
     session_id: str
     search_history: dict
     timestamp: datetime
+    user_id: str
+    is_logged_in: bool
 
 @app.delete("/history")
-def clear_search_history(input:SessionCall):
+def clear_search_history(input:SessionCall, connected:bool=False):
     # connect to db, and clear search history of session_id
     logger.log(f"clearing search history of session_id: {input.session_id}", name=__name__)
     try:
-        query = f"DELETE FROM search_history WHERE session_id = '{input.session_id}'"
+        if connected:
+            query = f"DELETE FROM search_history WHERE user_id = '{input.user_id}'"
+        else:
+            query = f"DELETE FROM search_history WHERE session_id = '{input.session_id}'"
         if execute_query(database="streamlit", query=query):
             return {"status": "success", "message": "Search history cleared successfully"}
         else:
@@ -45,15 +51,17 @@ def save_search_history(input: SearchHistory):
         search_history_json = json.dumps(input.search_history)
         
         ### DB ERD
-        # search_history (session_id, search_term, timestamp)
+        # search_history (session_id, search_term, timestamp, user_id, is_logged_in)
         query = """
-        INSERT INTO search_history (session_id, search_term, timestamp) 
-        VALUES (:session_id, :search_term, :timestamp)
+        INSERT INTO search_history (session_id, search_term, timestamp, user_id, is_logged_in) 
+        VALUES (:session_id, :search_term, :timestamp, :user_id, :is_logged_in)
         """
         params = {
             "session_id": input.session_id,
             "search_term": search_history_json,
-            "timestamp": input.timestamp
+            "timestamp": input.timestamp,
+            "user_id": input.user_id,
+            "is_logged_in": input.is_logged_in
         }
         
         if execute_query(database="streamlit", query=query, params=params):
@@ -174,12 +182,12 @@ def execute_query(database:str, query:str, params:dict=None, config_path:str='co
         
         with engine.connect() as connection:
             try:
-                logger.log(f"Attempting connection through SQLAlchemy...", name=__name__)
+                logger.log(f"executing query through sqlalchemy...", name=__name__)
                 if params:
                     connection.execute(text(query), params)
                 else:
                     connection.execute(text(query))
-                connection.commit()  # Commit the transaction
+                logger.log(f"query executed successfully", name=__name__)
             except Exception as e:
                 logger.log(f"Exception occurred while executing query: {e}", flag=1, name=__name__)
                 return False
@@ -202,8 +210,9 @@ def query_to_dataframe(database:str, query:str, config_path:str='config.json')->
         
         with engine.connect() as connection:
             try:
-                logger.log(f"attempting connection through sqlalchemy...", name=__name__)
+                logger.log(f"retrieving dataframe through sqlalchemy...", name=__name__)
                 df = pd.read_sql(query, connection)
+                logger.log(f"dataframe retrieved successfully", name=__name__)
             except Exception as e:
                 logger.log(f"Exception occurred while connecting: {e}", flag=1, name=__name__)
         return df

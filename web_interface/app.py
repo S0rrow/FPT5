@@ -1,35 +1,44 @@
-import os, json
+import os, json, base64
 import streamlit as st
 from streamlit_google_auth import Authenticate
-from utils import Logger
+from views.utils import Logger
 import views
 from time import strftime, gmtime
+from datetime import datetime
+
+event_log_path = "logs/events"
+event_logger = Logger(options={"name":__name__, "log_path":event_log_path})
 
 ### Button Callback Functions
 
 # Home button
 def on_click_home(logger:Logger):
     logger.log(f"home button clicked; session state current view changed to home", name=__name__)
+    event_logger.log(f"click,home",flag=4,name=__name__)
     st.session_state['current_view'] = "home"
 
 # Login Button
 def on_click_login(logger:Logger):
     logger.log(f"login button clicked; session state current view changed to login", name=__name__)
+    event_logger.log(f"click,login",flag=4,name=__name__)
     st.session_state['current_view'] = "login"
     
 # User Information Button
 def on_click_user_info(logger:Logger):
     logger.log(f"user_info button clicked; session state current view changed to user_information", name=__name__)
+    event_logger.log(f"click,user_info",flag=4,name=__name__)
     st.session_state['current_view'] = "user_information"
 
 # Job Informations Button
 def on_click_job_info(logger:Logger):
     logger.log(f"job_info button clicked; session state current view changed to job_informations", name=__name__)
+    event_logger.log(f"click,job_info",flag=4,name=__name__)
     st.session_state['current_view'] = "job_informations"
 
 # Filter Log Button
 def on_click_filter_log(logger:Logger):
     logger.log(f"filter_log button clicked; session state current view changed to filter_log", name=__name__)
+    event_logger.log(f"click,filter_log",flag=4,name=__name__)
     st.session_state['current_view'] = "filter_log"
 
 def main():
@@ -50,12 +59,22 @@ def main():
         )
         logger.log(f"flag #{flag} | page config loaded", name=__name__)
         
-        
         ### current_view init
         flag = 1
         # if no session_state.current_view exists
         if not st.session_state.get('current_view', False):
             st.session_state['current_view'] = "home"
+            event_logger.log(f"session_state['current_view']:{st.session_state['current_view']}",flag=4,name=__name__)
+        # 세션 상태에 'apply_last_filter'가 없으면 초기화
+        if 'apply_last_filter' not in st.session_state:
+            st.session_state['apply_last_filter'] = False
+            event_logger.log(f"session_state['apply_last_filter']:{st.session_state['apply_last_filter']}",flag=4,name=__name__)
+        
+        # 세션 ID 생성 (예: 현재 시간을 사용)
+        if 'session_id' not in st.session_state:
+            # encode session_id as string of current timestamp with base64
+            st.session_state['session_id'] = base64.b64encode(str(datetime.now().timestamp()).encode()).decode()
+            event_logger.log(f"session_state['session_id']:{st.session_state['session_id']}",flag=4,name=__name__)
         logger.log(f"flag #{flag} | current_view initial config loaded; current_view:{st.session_state.get('current_view')}", name=__name__)
         
         
@@ -69,7 +88,7 @@ def main():
         )
         authenticator.check_authentification()
         logger.log(f"flag #{flag} | authenticator loaded", name=__name__)
-        
+        event_logger.log(f"session_state['connected']:{st.session_state.get('connected')}",flag=4,name=__name__)
         
         ### sidebar configuration
         flag = 3
@@ -102,25 +121,27 @@ def main():
         if st.session_state.get('current_view') == "home":
             logger.log(f"flag #{flag} | displaying home page", name=__name__)
             views.display_home_page(logger)
-            
+            event_logger.log(f"session_state['current_view']:{st.session_state.get('current_view')}",flag=4,name=__name__)
         elif st.session_state.get('current_view') == "login":
             logger.log(f"flag #{flag} | displaying login page", name=__name__)
             views.display_login_page(logger, authenticator)
-            
+            event_logger.log(f"session_state['current_view']:{st.session_state.get('current_view')}",flag=4,name=__name__)
         elif st.session_state.get('current_view') == "job_informations":
             logger.log(f"flag #{flag} | displaying job_informations page", name=__name__)
             views.display_job_informations(logger, url="http://127.0.0.1:8000")
-            
+            event_logger.log(f"session_state['current_view']:{st.session_state.get('current_view')}",flag=4,name=__name__)
         elif st.session_state.get('current_view') == "user_information":
             logger.log(f"flag #{flag} | displaying user_information page", name=__name__)
             views.display_user_information(logger, authenticator)
+            event_logger.log(f"session_state['current_view']:{st.session_state.get('current_view')}",flag=4,name=__name__)
         elif st.session_state.get('current_view') == "filter_log":
             logger.log(f"flag #{flag} | displaying filter_log page", name=__name__)
             views.display_filter_log(logger)
+            event_logger.log(f"session_state['current_view']:{st.session_state.get('current_view')}",flag=4,name=__name__)
         else:
             logger.log(f"flag #{flag} | session state not correctly set; plz check logic flow", name=__name__, flag=1)
             views.display_error_page(logger)
-            
+            event_logger.log(f"session_state['current_view']:{st.session_state.get('current_view')}",flag=4,name=__name__)
         logger.log(f"flag #{flag} | display functions loaded", name=__name__)
     
     except Exception as e:
