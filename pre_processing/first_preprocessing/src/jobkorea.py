@@ -1,65 +1,33 @@
+import requests
 from bs4 import BeautifulSoup
-import pandas as pd
-import awswrangler as wr
-import requests, re, json, pytz, time, boto3
 from datetime import datetime
-import logging_to_cloudwatch as ltc
+import subprocess, os
+import re
+import time
+import pandas as pd
+import subprocess, os
+from time import gmtime, strftime
+import pytz
+from farmhash import FarmHash32 as fhash
 
+
+def log(msg, flag=None, path="./logs"):
+    if flag==None:
+        flag = 0
+    head = ["DEBUG", "ERROR", "WARN", "STATUS", "INFO"]
+    now = strftime("%H:%M:%S", gmtime())
+    
+    if not os.path.isdir(path):
+        os.mkdir(path)
+    
+    if not os.path.isfile(f"{path}/{head[flag]}.log"):
+        assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" > {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
+    else: assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" >> {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
 
 def get_time():
     kst_tz = pytz.timezone('Asia/Seoul')
     return datetime.strftime(datetime.now().astimezone(kst_tz),"%Y-%m-%d_%H%M%S")
 
-def send_sqs_message(sqs_url, message):
-    sqs = boto3.client('sqs')
-    try:
-        message_body = json.dumps(message)
-        response = sqs.send_message(
-            QueueUrl=sqs_url,
-            MessageBody=message_body
-        )
-        return response['MessageId']
-    except Exception as e:
-        raise e
-# logger = ltc.log('/aws/lambda/{cloudwatch의 크롤러폴더}','{크롤러명}_logs')
-def lambda_handler(event, context):
-    payload = event.get('data', {})
-    sqs_url = payload.get('sqs_url')
-    logger = ltc.log('/aws/lambda/crawler-jobkorea','jobkorea_logs')
-    try:
-        bucket_name = 'crawl-data-lake'
-        instance = jobkorea(logger)
-        instance.get_job()
-        export_date = get_time()
-        df = instance.to_dataframe()
-        df['crawl_domain'] = "www.jobkorea.co.kr"
-        df['get_date'] = export_date
-        
-        message = {
-                "status": "SUCCESS",
-                "site_symbol": "JK",
-                "filePath": f"/jobkorea/data/{export_date}.json",
-                "completionDate": export_date,
-                "message": "Data crawl completed successfully.",
-                "errorDetails": None
-            }
-        
-        wr.s3.to_json(df=df, path=f"s3://{bucket_name}/jobkorea/data/{export_date}.json", orient='records', lines=True, force_ascii=False, date_format='iso')
-    except Exception as e:
-        message['status'] = "FAILURE"
-        message['filePath'] = None
-        message['message'] = "Data crawl failed due to an unspecified error."
-        message['errorDetails'] = {
-            "errorCode": "UNKNOWN_ERROR",
-            "errorMessage": "The crawl process failed unexpectedly."
-            }
-        logger.error(message['message'])
-        send_respone = send_sqs_message(sqs_url, message)
-        return {"statusCode": 500, "body": f"Error: {str(e)} "}
-    else:
-        logger.info(f"[jobkorea] {len(df)} rows inserted")
-        send_respone = send_sqs_message(sqs_url, message)
-        return {"statusCode": 200, "body": f"Data processed successfully. SQSMessageId: {str(send_respone)}"}
 
 
 class jobkorea:
@@ -177,3 +145,70 @@ class jobkorea:
         for i in self.all_dict:
             _list.append(self.all_dict[i])
         return pd.DataFrame(_list)
+
+    def pre_processing_first(self,json_object):
+        df = pd.DataFrame(json_object)
+        result = pd.DataFrame()
+        # jobkrea title
+        result['job_title'] = df['title'].apply(lambda x: ' '.join(re.sub(r'[^.,/\-+()\s\w]',' ',x.replace('\\/','/')).split()))
+        # jobkorea id
+        result['job_id'] =  df['job_id']
+        #company_name
+        result['company_name'] = df['company']
+        # 모집분야
+        result['job_tasks'] = df['모집분야'].apply(lambda x: ' '.join(re.sub(r'[^.,/\-+()\s\w]',' ',x.replace('\\/','/')).split()) if x != None else x)
+        # 스킬
+        result['stacks'] = df['스킬'].apply(lambda x: x.replace('\\/','/') if x !=None else x) 
+        #산업
+        result['job_category'] = df['산업'].apply(lambda x: x.replace('\\/','/') if x !=None else x)
+        # 주요사업
+        result['indurstry_type'] = df['주요사업'].apply(lambda x: x.replace('\\/','/') if x !=None else x) 
+        #시작
+        result['start_date'] = df['시작'].apply(lambda x: str(int(datetime.strptime('-'.join(list(map(lambda y: re.findall(r'[0-9]+', y)[0],x.split('.')))),'%Y-%m-%d').timestamp())) if x != None else x)
+
+        #마감
+        result['end_date'] = df['마감'].apply(lambda x: str(int(datetime.strptime('-'.join(list(map(lambda y: re.findall(r'[0-9]+', y)[0],x.split('.')))),'%Y-%m-%d').timestamp())) if x != None else x)
+        #경력
+
+        result['required_career'] = df['경력'].apply(lambda x: (False if x.find('신입')else True) if x !=None else x)
+        result['resume_required'] = df['이력서'].apply(lambda x: False if x==None else True)
+        result['get_date'] = df['get_date'].apply(lambda x: int(datetime.strptime(x,"%Y-%m-%d_%H%M%S").timestamp()))
+        result['crawl_url']=df['target_url'].str.replace('\\/','/')
+        # jobkorea symbol create
+        result['site_symbol'] = "JK"
+        result['id'] = result.apply(lambda x: fhash(f'{x[13]}{x[2]}{x[1]}'),axis=1)
+        del df
+        return result
+    
+def main():
+    try:
+        bucket_name = 'crawl-data-lake'
+        instance = jobkorea()
+        instance.get_job(flag='all')
+        export_date = get_time()
+        df = instance.to_dataframe()
+        df['crawl_domain'] = "www.jobkorea.co.kr"
+        df['get_date'] = export_date
+        with open("./API_KEYS.json", "r") as f:
+            key = json.load(f)
+
+        # S3 버킷 정보 get
+        with open("./DATA_SRC_INFO.json", "r") as f:
+            bucket_info = json.load(f)
+        # S3 섹션 및 client 생성
+        session = boto3.Session(
+            aws_access_key_id=key['aws_access_key_id'],
+            aws_secret_access_key=key['aws_secret_key'],
+            region_name=key['region']
+        )
+        s3 = session.client('s3')
+        s3.put_object(Body=df.to_json(orient='records',lines=True,force_ascii=False,date_format='iso'),Bucket=bucket_name,Key=f'jobkorea/data/{export_date}.json')
+        
+    except Exception as e:
+        return {"statusCode": 500, "body": f"Error: {str(e)} "}
+    else:
+        return {"statusCode": 200, "body": "Data processed successfully"}
+
+if __name__ == "__main__":
+    main()
+        
