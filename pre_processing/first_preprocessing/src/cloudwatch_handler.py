@@ -7,9 +7,9 @@ import json, boto3
 
 
 
-with open("/mnt/data/airflow/.KEYS/WATCHER_ACCESS_KEY.json", "r") as f:
+with open("./.KEYS/WATCHER_ACCESS_KEY.json", "r") as f:
     key = json.load(f)
-with open("/mnt/data/airflow/.KEYS/DATA_SRC_INFO.json", "r") as f:
+with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
     bucket_info = json.load(f)
 session = boto3.Session(
     aws_access_key_id=key['aws_access_key_id'],
