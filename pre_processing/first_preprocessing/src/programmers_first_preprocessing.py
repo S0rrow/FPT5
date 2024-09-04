@@ -1,8 +1,6 @@
 # 전체 코드
-from json import JSONDecodeError
-from botocore.exceptions import ClientError
 from farmhash import FarmHash32 as fhash
-import json, boto3, datetime, pytz, logging, requests, re, os, sys
+import json, boto3, pytz, requests, re, os, sys
 import pandas as pd
 import logging_to_cloudwatch as ltc
 import utils

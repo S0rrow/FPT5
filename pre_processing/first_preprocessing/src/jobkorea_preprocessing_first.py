@@ -33,7 +33,6 @@ def get_bucket_metadata(s3_client, pull_bucket_name,target_folder_prefix):
 
 def upload_data(logger, records, key, push_table_name):
     # DynamoDB 클라이언트 생성
-    records = records.to_dict(orient="records")
     dynamodb = boto3.resource(
         'dynamodb',
         aws_access_key_id=key['aws_access_key_id'],
@@ -41,33 +40,35 @@ def upload_data(logger, records, key, push_table_name):
         region_name=key['region']
     )
     table = dynamodb.Table(push_table_name)
-    for item in records:
-        table.put_item(Item=item)
-    
+    # 25개씩 묶어서 배치로 처리
+    with table.batch_writer() as batch:
+        for item in records:
+            batch.put_item(Item=item)
     
 def main():
     logger = log('/aws/preprocessing/jobkorea-first','jobkorea_logs')
     # S3 client 생성에 필요한 보안 자격 증명 정보 get
-    with open("./.KEYS/API_KEYS.json", "r") as f:
-        key = json.load(f)
+    with open("./.KEYS/FIRST_PREPROCESSING_KEY.json", "r") as f:
+        aws_key = json.load(f)
 
     # S3 버킷 정보 get
     with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
-        bucket_info = json.load(f)
+        storage_info = json.load(f)
+        
     # S3 섹션 및 client 생성
     session = boto3.Session(
-        aws_access_key_id=key['aws_access_key_id'],
-        aws_secret_access_key=key['aws_secret_key'],
-        region_name=key['region']
+        aws_access_key_id=aws_key['aws_access_key_id'],
+        aws_secret_access_key=aws_key['aws_secret_key'],
+        region_name=aws_key['region']
     )
-
     s3 = session.client('s3')
 
     # S3 버킷 정보 init
-    pull_bucket_name = bucket_info['pull_bucket_name']
-    dump_bucket_name = bucket_info['dump_bucket_name']
-    push_table_name = bucket_info['restore_table_name']
-    target_folder_prefix = bucket_info['target_folder_prefix']['jobkorea_path']
+    pull_bucket_name = storage_info['pull_bucket_name']
+    data_archive_bucket_name = storage_info['crawl_data_bucket_name']
+    push_table_name = storage_info['restore_table_name']
+    id_list_bucket_name = storage_info['id_storage_bucket_name']
+    target_folder_prefix = storage_info['target_folder_prefix']['jobkorea_path']
     # 특정 폴더 내 파일 목록 가져오기
     # TODO: 
     # - 마지막 실행일(년,월,일)을 datetime으로 저장한 파일을 읽어들여 curr_date에 적용하기; 당담: 유정연
@@ -81,7 +82,7 @@ def main():
         try:
             copy_source = {"Bucket":pull_bucket_name,"Key":obj['Key']} 
             response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
-            s3.copy(copy_source,dump_bucket_name,obj['Key'])
+            s3.copy(copy_source,data_archive_bucket_name,obj['Key'])
             s3.delete_object(Bucket=pull_bucket_name,Key=obj['Key'])      
             json_context = response['Body'].read().decode('utf-8')
             cleaned_text = re.sub(r'[\r\u2028\u2029]+', ' ', json_context) # 파싱을 위해 unuseal line terminators 제거
@@ -89,10 +90,10 @@ def main():
             instance = jobkorea(logger)
             result = instance.pre_processing_first(json_list)
             if len(result):
-                upload_data(logger,result,key,push_table_name)
+                upload_data(logger,result,aws_key,push_table_name)
             
         except Exception as e:
-            s3.copy({"Bucket":dump_bucket_name,"Key":obj["Key"]},pull_bucket_name,obj["Key"])
+            s3.copy({"Bucket":data_archive_bucket_name,"Key":obj["Key"]},pull_bucket_name,obj["Key"])
             logger.error(f"{obj['Key']} upload error")
             #s3.delete_object(Bucket=dump_bucket_name,Key=obj["Key"])
         else:
