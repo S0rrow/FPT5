@@ -77,8 +77,9 @@ def main():
                 json_list = [json.loads(line) for line in cleaned_text.strip().splitlines()] # pandas format으로 맞추기
                 preprocessed_df = data_pre_process(pd.DataFrame(json_list))
                 preprocessed_df.columns = new_columns
-                upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, preprocessed_df)
-                filtered_df = preprocessed_df[preprocessed_df['id'].isin(upload_record_ids)]
+                unique_df = preprocessed_df.drop_duplicates(subset='id', keep='first')
+                upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, unique_df)
+                filtered_df = unique_df[unique_df['id'].isin(upload_record_ids)]
                 upload_data(filtered_df.to_dict(orient='records'))
                 update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
             except json.JSONDecodeError as e:
