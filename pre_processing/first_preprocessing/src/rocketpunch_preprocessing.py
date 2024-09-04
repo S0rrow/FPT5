@@ -22,12 +22,12 @@ logging.basicConfig(
 
 def access_keys(path):
     try:
-        with open(f'{path}/API_KEYS.json', 'r') as f:
+        with open(f'{path}/FIRST_PREPROCESSING_KEY.json', 'r') as f:
             key = json.load(f)
         with open(f'{path}/DATA_SRC_INFO.json', 'r') as f:
-            bucket_info = json.load(f)
+            storage_info = json.load(f)
         logging.info(f"Access keys and bucket info loaded successfully from {path}")
-        return key, bucket_info
+        return key, storage_info
     except FileNotFoundError as e:
         logging.error(f"File not found: {e}")
         raise
@@ -38,9 +38,9 @@ def access_keys(path):
         logging.error(f"An error occurred while accessing keys: {e}")
         raise
 
-def import_bucket(key, bucket_info):
-    pull_bucket_name = bucket_info['pull_bucket_name']
-    dump_bucket_name = bucket_info['dump_bucket_name']
+def import_bucket(key, storage_info):
+    pull_bucket_name = storage_info['pull_bucket_name']
+    data_archive_bucket_name = storage_info['crawl_data_bucket_name']
 
     try:
         session = boto3.Session(
@@ -67,9 +67,9 @@ def import_bucket(key, bucket_info):
 
                 # Copy and delete the processed file
                 copy_source = {"Bucket": pull_bucket_name, "Key": obj['Key']}
-                s3.copy(copy_source, dump_bucket_name, obj['Key'])
+                s3.copy(copy_source, data_archive_bucket_name, obj['Key'])
                 s3.delete_object(Bucket=pull_bucket_name, Key=obj['Key'])
-                logging.info(f"Processed and moved file {obj['Key']} from {pull_bucket_name} to {dump_bucket_name}")
+                logging.info(f"Processed and moved file {obj['Key']} from {pull_bucket_name} to {data_archive_bucket_name}")
 
             except JSONDecodeError as e:
                 logging.error(f"JSONDecodeError encountered while processing {obj['Key']}: {e}")
@@ -89,8 +89,10 @@ def import_bucket(key, bucket_info):
         logging.error(f"An error occurred while importing bucket data: {e}")
         raise
 
+# TODO: record 단위로 putitem 하는 것 대신 모든 전처리 작업 완료 후 전체 record를 df로 반환할 것
 def preprocessing(df, key):
     logging.info("Preprocessing started")
+    precessed_list = [] # 수정한 부분
     for i, data in df.iterrows():
         try:
             processing_dict = {}
@@ -128,11 +130,14 @@ def preprocessing(df, key):
             processing_dict['get_date'] = int(dt.timestamp())
 
             # Export to DynamoDB
-            export_dynamo(processing_dict, key)
+            #export_dynamo(processing_dict, key)
+            precessed_list.append(processing_dict) # 수정한 부분
             logging.info(f"Successfully processed data row {i}")
 
         except Exception as e:
             logging.error(f"An error occurred during preprocessing row {i}: {e}")
+    
+    return precessed_list
 
 def export_dynamo(processing_dict, key):
     try:
@@ -161,14 +166,35 @@ def export_dynamo(processing_dict, key):
         logging.error(f"An unexpected error occurred while exporting to DynamoDB: {e}")
         raise
 
+# TODO: 추가된 batch 단위 upload 함수 이 함수를 사용하거나 참고하여 반영할 것
+def upload_data(records):
+    # DynamoDB 클라이언트 생성
+    dynamodb = boto3.resource(
+        'dynamodb',
+        aws_access_key_id=aws_key['aws_access_key_id'],
+        aws_secret_access_key=aws_key['aws_secret_key'],
+        region_name=aws_key['region']
+    )
+    table = dynamodb.Table(push_table_name)
+    # 25개씩 묶어서 배치로 처리
+    with table.batch_writer() as batch:
+        for item in records:
+            batch.put_item(Item=item)
+
 def main():
     file_path = '/mnt/data/airflow/.KEYS/'  # local file path
     try:
-        key, bucket_info = access_keys(file_path)
-        df = import_bucket(key, bucket_info)
+        key, storage_info = access_keys(file_path)
+        df = import_bucket(key, storage_info)
 
         if df is not None and not df.empty:
-            preprocessing(df, key)
+            precessed_list = preprocessing(df, key)
+            preprocessed_df = pd.Dataframe(precessed_list)
+            unique_df = preprocessed_df.drop_duplicates(subset='id', keep='first')
+            # TODO: remove_duplicate_id 함수를 사용할려면 s3 색션과 id_list_buket_name을 가져와야됨 s3 init 관련을 전역으로 빼거나 추가 조치를 취할 것
+            upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, unique_df)
+            filtered_df = unique_df[unique_df['id'].isin(upload_record_ids)]
+            upload_data(filtered_df.to_dict(orient='records'))
         else:
             logging.info('No task for preprocessing.')
         return True
