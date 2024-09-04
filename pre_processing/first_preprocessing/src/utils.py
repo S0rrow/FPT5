@@ -15,7 +15,7 @@ def log(msg, flag=None, path="./logs"):
     else: assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" >> {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
 
 # s3 client를 통해 해당 path의 file 목록 가져오기
-def get_bucket_metadata(s3_client, pull_bucket_name,target_folder_prefix):
+def get_bucket_metadata(s3_client, pull_bucket_name, target_folder_prefix):
     # 특정 폴더 내 파일 목록 가져오기
     response = s3_client.list_objects_v2(Bucket=pull_bucket_name, Prefix=target_folder_prefix, Delimiter='/')
 
