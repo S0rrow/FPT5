@@ -1,4 +1,5 @@
-import re, datetime, pytz, subprocess, os
+import re, datetime, pytz, subprocess, os, json
+from botocore.exceptions import ClientError
 from time import gmtime, strftime
 
 def log(msg, flag=None, path="./logs"):
@@ -52,3 +53,54 @@ def change_str_to_timestamp(text):
         return str(int(datetime.datetime.strptime(text, "%Y-%m-%d").timestamp()))
     else:
         return None
+
+# unique id를 보관하는 S3 버킷의 obj_ids.json 업데이트
+def update_ids_to_s3(s3_client, buket_name, prefix, upload_id_list):
+    odd_id_list = get_id_from_s3(s3_client, buket_name, "obj_ids.json")
+    new_id_list = list(set(odd_id_list + upload_id_list))
+    update_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    data = {
+        "version": "2024-09-04",
+        "statement": "id_list_of_precessed_data_objects",
+        "ids": new_id_list,
+        "last_update": update_date
+    }
+    json_string = json.dumps(data)
+    response = s3_client.put_object(
+        Bucket=buket_name,          # 버킷 이름
+        Key=prefix,             # 업로드할 파일의 키(경로 및 이름)
+        Body=json_string,               # 업로드할 파일의 내용
+        ContentType='application/json'  # 파일의 MIME 타입
+    )
+    
+    return response
+
+# unique id를 보관하는 S3 버킷의 obj_ids.json에서 id 목록 호출
+def get_id_from_s3(s3_client, buket_name, prefix):
+    metadata_list = get_bucket_metadata(s3_client, buket_name, prefix)
+    if metadata_list:
+        try:
+            _obj = metadata_list[0]
+            response = s3_client.get_object(Bucket=buket_name, Key=_obj['Key'])
+            json_context = response['Body'].read().decode('utf-8')
+            join_dict = json.loads(json_context)
+            return join_dict.get('ids')
+        except json.JSONDecodeError as e:
+            #logging.error(f"JSONDecodeError encountered: {e}")
+            return False
+        except ClientError as e:
+            #logging.error(f"ClientError encountered: {e}")
+            return False
+        except Exception as e:
+            #logging.error(f"Unknow Error. encountered: {e}")
+            return False
+
+# unique id 목록과 현재 df의 id column을 비교하여 unique id 목록에 없는 id column 값만 list로 반환
+def remove_duplicate_id(s3_client, buket_name, _df):
+    id_list = get_id_from_s3(s3_client, buket_name, "obj_ids.json")
+    df_id_list = _df['id'].unique().tolist()
+    if id_list:
+        unput_id_list = [id for id in df_id_list if id not in id_list]
+        return unput_id_list
+    else:
+        return df_id_list
