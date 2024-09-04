@@ -74,9 +74,9 @@ def upload_data(records, key, push_table_name):
     # DynamoDB 클라이언트 생성
     dynamodb = boto3.resource(
         'dynamodb',
-        aws_access_key_id=aws_key['aws_access_key_id'],
-        aws_secret_access_key=aws_key['aws_secret_key'],
-        region_name=aws_key['region']
+        aws_access_key_id=key['aws_access_key_id'],
+        aws_secret_access_key=key['aws_secret_key'],
+        region_name=key['region']
     )
     table = dynamodb.Table(push_table_name)
     # 25개씩 묶어서 배치로 처리
@@ -155,7 +155,7 @@ def main():
             upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, unique_df)
             filtered_df = unique_df[unique_df['id'].isin(upload_record_ids)]
             if len(filtered_df): # 처리 완료시 dynamoDB에 적제
-                upload_data(filtered_df.to_dict(orient='records'),key,push_table_name)
+                upload_data(filtered_df.to_dict(orient='records'),aws_key,push_table_name)
                 update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)       
             
         except Exception as e:
