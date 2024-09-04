@@ -2,11 +2,12 @@
 from json import JSONDecodeError
 from botocore.exceptions import ClientError
 from farmhash import FarmHash32 as fhash
-import json, boto3, datetime, pytz, logging, requests, re, os
+import json, boto3, datetime, pytz, logging, requests, re, os, sys
 import pandas as pd
+import logging_to_cloudwatch as ltc
 import utils
-# from utils import get_curr_kst_time, set_kst_timezone
 
+logger = ltc.log('/aws/preprocessing/programmers-first','programmers_logs')
 
 def get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix):
     # 특정 폴더 내 파일 목록 가져오기
@@ -100,14 +101,94 @@ else:
     job_category_json = r.json()
     
     # 가져온 데이터를 파일로 저장
-    with open(file_path, "w", encoding='utf-8', ensure_ascii=False) as f:
+    with open(file_path, "w") as f:
         json.dump(job_category_json, f)
 
 # JSON 데이터를 DataFrame으로 변환
 job_category_table = pd.DataFrame(job_category_json)
 
+def tagid_to_tagname(tags, job_table):
+    """job_table 데이터프레임을 사용하여 tags 숫자와 매칭 리스트를 반환
+
+    Args:
+        tags (int): df['jobCategoryIds']
+        job_table (pandas.DataFrame): job_category_table
+
+    Returns:
+        _type_: list
+    """
+    return ', '.join(job_table[job_table['id'].isin(tags)]['name'].tolist())
+
+
+def preprocess_dataframe(tmpdf):
+    logger.info("Start proprocess_dataframe")
+    df = tmpdf.copy()
+    
+    # description 전처리
+    df['description'] = df['description'].apply(lambda x: replace_strings(x))
+    
+    # requirement 전처리
+    df['requirement'] = df['requirement'].apply(lambda x: replace_strings(x))
+
+    # preferredExperience 전처리
+    df['preferredExperience'] = df['preferredExperience'].apply(lambda x: replace_strings(x))
+    
+    # jobCategoryIds 전처리
+    df['jobCategoryIds'] = df['jobCategoryIds'].apply(lambda x: tagid_to_tagname(x, job_category_table))
+    
+    # 날짤 형식 전처리
+    df['updatedAt'] = pd.to_datetime(df['updatedAt']).dt.strftime('%Y-%m-%d')
+    df['endAt'] = df['endAt'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d') if pd.notnull(x) else None)
+    # df['endAt'] = df['endAt'].apply(lambda x: pd.to_datetime(x).date() if pd.notnull(x) else x)
+
+    # boolean 형식 전처리
+    df['careerRange'] = df['careerRange'].apply(lambda x: False if pd.isnull(x) else True) 
+    df['resumeRequired'] = df['resumeRequired'].apply(lambda x: True if x else False)
+    df['isAppliable'] = df['isAppliable'].apply(lambda x: True if x else False)
+
+    # site_symbol 추가
+    df['site_symbol'] = 'PRO'
+    
+    # crawl_domain 추가
+    df['crawl_domain'] = 'https://career.programmers.co.kr/'
+    
+    # get_date 필드 추가 및 숫자로 변환
+    df['get_date'] = int(pd.to_datetime('today').strftime('%Y%m%d'))
+    
+    # id 추가
+    df['id'] = df.apply(lambda row: fhash(f"PRO{row['companyname']}{row['jobcode']}"), axis=1)
+    # 필요없는 컬럼 삭제
+    df.drop(['career','jobType', 'address', 'period', 'minCareerRequired', 'minCareer', 'additionalInformation'], axis=1, inplace=True)
+    # 컬럼명 변경
+    df.rename(columns={'title':'job_title', 'jobcode':'job_id', 'companyId': 'company_id', 
+                       'companyname': 'company_name', 'description':'job_tasks', 
+                       'technicalTags':'stacks', 'requirement':'job_requirements', 
+                       'preferredExperience':'job_prefer','jobCategoryIds':'job_category', 
+                       'updatedAt':'start_date', 'endAt':'end_date', 'careerRange':'required_career', 
+                       'resumeRequired':'resume_required', 'isAppliable':'post_status',
+                       'page_url':'crawl_url'}, inplace=True)
+    
+    logger.info("All done proprocess_dataframe")
+    return df
+
+def upload_data(records,key,push_table_name):
+    """DynamoDB 적제 코드
+
+    Args:
+        records (dictionary): dict 타입으로 dataframe을 변환하여 받는다
+    """
+    # DynamoDB 클라이언트 생성
+    dynamodb = boto3.resource(
+        'dynamodb',
+        aws_access_key_id=key['aws_access_key_id'],
+        aws_secret_access_key=key['aws_secret_key'],
+        region_name=key['region']
+    )
+    table = dynamodb.Table(push_table_name)
+    for item in records:
+        table.put_item(Item=item)
+
 def main():
-    flag = 0
 
     # S3 client 생성에 필요한 보안 자격 증명 정보 get
     with open("./.KEYS/FIRST_PREPROCESSING_KEY.json", "r") as f:
@@ -140,6 +221,7 @@ def main():
     # copy files in crawl-data-lake to 
     all_df = pd.DataFrame()
     error_data_list = []
+    logger.info(f"Start loading data(len: {len(data_list)}) to DynamoDB")
     for obj in data_list[1:]:
         try:
             response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
@@ -159,20 +241,21 @@ def main():
                 update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)       
             
         except Exception as e:
-            logging.error(f"'{obj['Key']}' went wrong: {e}")
+            logger.error(f"'{obj['Key']}' went wrong: {e}")
             error_data_list.append({obj['Key']})
             s3.copy({"Bucket":data_archive_bucket_name, "Key":obj["Key"]}, pull_bucket_name,obj["Key"]) # 문제 데이터 다시 s3에 적제
-            flag = 1
             continue
     
-        
-    print("Data successfully uploaded to DynamoDB")
-    if flag:
-        print("except: ")
-        for a in error_data_list:
-            print(a)
+    logger.info("Data successfully uploaded to DynamoDB")
         
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+        print("All done properly!!")
+        sys.exit(0)  # 정상 종료
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        logger.error(f"An error occurred: {str(e)}")
+        sys.exit(1)  # 비정상 종료
 

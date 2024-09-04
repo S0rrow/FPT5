@@ -8,6 +8,7 @@ import pandas as pd
 import subprocess, os
 from time import gmtime, strftime
 import pytz
+from farmhash import FarmHash32 as fhash
 
 
 def log(msg, flag=None, path="./logs"):
@@ -144,6 +145,40 @@ class jobkorea:
         for i in self.all_dict:
             _list.append(self.all_dict[i])
         return pd.DataFrame(_list)
+
+    def pre_processing_first(self,json_object):
+        df = pd.DataFrame(json_object)
+        result = pd.DataFrame()
+        # jobkrea title
+        result['job_title'] = df['title'].apply(lambda x: ' '.join(re.sub(r'[^.,/\-+()\s\w]',' ',x.replace('\\/','/')).split()))
+        # jobkorea id
+        result['job_id'] =  df['job_id']
+        #company_name
+        result['company_name'] = df['company']
+        # 모집분야
+        result['job_tasks'] = df['모집분야'].apply(lambda x: ' '.join(re.sub(r'[^.,/\-+()\s\w]',' ',x.replace('\\/','/')).split()) if x != None else x)
+        # 스킬
+        result['stacks'] = df['스킬'].apply(lambda x: x.replace('\\/','/') if x !=None else x) 
+        #산업
+        result['job_category'] = df['산업'].apply(lambda x: x.replace('\\/','/') if x !=None else x)
+        # 주요사업
+        result['indurstry_type'] = df['주요사업'].apply(lambda x: x.replace('\\/','/') if x !=None else x) 
+        #시작
+        result['start_date'] = df['시작'].apply(lambda x: str(int(datetime.strptime('-'.join(list(map(lambda y: re.findall(r'[0-9]+', y)[0],x.split('.')))),'%Y-%m-%d').timestamp())) if x != None else x)
+
+        #마감
+        result['end_date'] = df['마감'].apply(lambda x: str(int(datetime.strptime('-'.join(list(map(lambda y: re.findall(r'[0-9]+', y)[0],x.split('.')))),'%Y-%m-%d').timestamp())) if x != None else x)
+        #경력
+
+        result['required_career'] = df['경력'].apply(lambda x: (False if x.find('신입')else True) if x !=None else x)
+        result['resume_required'] = df['이력서'].apply(lambda x: False if x==None else True)
+        result['get_date'] = df['get_date'].apply(lambda x: int(datetime.strptime(x,"%Y-%m-%d_%H%M%S").timestamp()))
+        result['crawl_url']=df['target_url'].str.replace('\\/','/')
+        # jobkorea symbol create
+        result['site_symbol'] = "JK"
+        result['id'] = result.apply(lambda x: fhash(f'{x[13]}{x[2]}{x[1]}'),axis=1)
+        del df
+        return result
     
 def main():
     try:

@@ -3,6 +3,8 @@ import pandas as pd
 import awswrangler as wr
 import requests, re, json, pytz, time, boto3
 from datetime import datetime
+import logging_to_cloudwatch as ltc
+
 
 def get_time():
     kst_tz = pytz.timezone('Asia/Seoul')
@@ -19,14 +21,14 @@ def send_sqs_message(sqs_url, message):
         return response['MessageId']
     except Exception as e:
         raise e
-
+# logger = ltc.log('/aws/lambda/{cloudwatch의 크롤러폴더}','{크롤러명}_logs')
 def lambda_handler(event, context):
     payload = event.get('data', {})
     sqs_url = payload.get('sqs_url')
-
+    logger = ltc.log('/aws/lambda/crawler-jobkorea','jobkorea_logs')
     try:
         bucket_name = 'crawl-data-lake'
-        instance = jobkorea()
+        instance = jobkorea(logger)
         instance.get_job()
         export_date = get_time()
         df = instance.to_dataframe()
@@ -51,10 +53,11 @@ def lambda_handler(event, context):
             "errorCode": "UNKNOWN_ERROR",
             "errorMessage": "The crawl process failed unexpectedly."
             }
-        
+        logger.error(message['message'])
         send_respone = send_sqs_message(sqs_url, message)
         return {"statusCode": 500, "body": f"Error: {str(e)} "}
     else:
+        logger.info(f"[jobkorea] {len(df)} rows inserted")
         send_respone = send_sqs_message(sqs_url, message)
         return {"statusCode": 200, "body": f"Data processed successfully. SQSMessageId: {str(send_respone)}"}
 
@@ -62,9 +65,14 @@ def lambda_handler(event, context):
 class jobkorea:
     header = {"user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"}
     post_header= {"user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36","X-Requested-With":"XMLHttpRequest"}
+    logger = None
     all_dict = {}
     query_log = []
     error_jobid_list = []
+    
+    def __init__(self,_logger):
+        self.logger = _logger
+    
     def get_job(self, query='duty=1000229%2C1000230%2C1000231%2C1000232%2C1000233%2C1000234%2C1000235%2C1000236%2C1000237%2C1000238%2C1000239%2C1000240%2C1000241%2C1000242%2C1000243%2C1000244%2C1000245%2C1000246&sort=6',flag='daily'):
         if flag == 'all':
             base_url = f'https://m.jobkorea.co.kr/Recruit/JobList/arealist?{query}&page=1'
@@ -78,33 +86,38 @@ class jobkorea:
             all_num = int(soup.find("div",attrs={'id':"devNormalListContainer"})['data-agicnt'])
             response.close()
             del soup
+        self.logger.info(f"[jobkorea] get job list {flag}")
         if flag == 'daily':
             all_num = 100
         #log(f"query({query} include {all_num} jobs)",4)
         pagenum = (all_num //40) + 1
         for p in range(1,pagenum+1):
             target_url = f'https://m.jobkorea.co.kr/Recruit/JobList/arealist?page={p}&sort=6'
-            
-            response = self.get_url(target_url)
-            if response:
-                soup = BeautifulSoup(response.text)
-                _list = soup.find("div",attrs={"class":"list list-recruit list-recruit-badge"}).find_all('li')
-                for e in _list:
-                    job_id = re.compile("[0-9]+").findall(e.find('a')['href'])[0]
-                    _dict = {}
-                    _dict["company"] = e.find('div',attrs={"class":"company"}).text 
-                    _dict["title"] = e.find('div',attrs={"class":"title"}).text
-                    self.all_dict[job_id] = _dict
-                    # self.get_giread(job_id)
-                response.close()
-                del soup
-            #else:
-                #log(f"{target_url} error",4)
+            try:
+                response = self.get_url(target_url)
+                if response:
+                    soup = BeautifulSoup(response.text)
+                    _list = soup.find("div",attrs={"class":"list list-recruit list-recruit-badge"}).find_all('li')
+                    for e in _list:
+                        job_id = re.compile("[0-9]+").findall(e.find('a')['href'])[0]
+                        _dict = {}
+                        _dict["company"] = e.find('div',attrs={"class":"company"}).text 
+                        _dict["title"] = e.find('div',attrs={"class":"title"}).text
+                        self.all_dict[job_id] = _dict
+                        # self.get_giread(job_id)
+                    response.close()
+                    del soup
+            except Exception as e:
+                self.logger.error(f"[jobkorea] get job list{target_url}:{e}")
+
         base_url = 'https://www.jobkorea.co.kr/Recruit/GI_Read/'
         for job_id in self.all_dict:
-            self.all_dict[job_id]['job_id'] = job_id
-            self.all_dict[job_id]['target_url'] = base_url + job_id
-            self.post_swipgegiread(job_id)  
+            try:
+                self.all_dict[job_id]['job_id'] = job_id
+                self.all_dict[job_id]['target_url'] = base_url + job_id
+                self.post_swipgegiread(job_id)  
+            except Exception as e:
+                self.logger.error(f"[jobkorea] {base_url + job_id} error ")
 
                 
 
