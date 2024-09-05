@@ -14,6 +14,7 @@ def display_user_information(logger:Logger, authenticator:Authenticate):
             if st.button('Log out'):
                 logger.log(f"logging out...", name=__name__)
                 authenticator.logout()
+                st.session_state['user_id'] = None
                 st.session_state['current_view'] = "home"
         else:
             logger.log(f"error occurred", name=__name__)

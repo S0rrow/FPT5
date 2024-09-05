@@ -1,3 +1,4 @@
+import hashlib
 import os, json, base64
 import streamlit as st
 from streamlit_google_auth import Authenticate
@@ -6,8 +7,7 @@ import views
 from time import strftime, gmtime
 from datetime import datetime
 
-event_log_path = "logs/events"
-event_logger = Logger(options={"name":__name__, "log_path":event_log_path})
+event_logger = Logger(options={"name":__name__})
 
 ### Button Callback Functions
 
@@ -69,12 +69,15 @@ def main():
         if 'apply_last_filter' not in st.session_state:
             st.session_state['apply_last_filter'] = False
             event_logger.log(f"session_state['apply_last_filter']:{st.session_state['apply_last_filter']}",flag=4,name=__name__)
-        
-        # 세션 ID 생성 (예: 현재 시간을 사용)
+        # 세션 ID 생성
         if 'session_id' not in st.session_state:
             # encode session_id as string of current timestamp with base64
             st.session_state['session_id'] = base64.b64encode(str(datetime.now().timestamp()).encode()).decode()
             event_logger.log(f"session_state['session_id']:{st.session_state['session_id']}",flag=4,name=__name__)
+        # user id init
+        if 'user_id' not in st.session_state and st.session_state.get('user_info', False):
+            st.session_state['user_id'] = hashlib.md5(st.session_state['user_info'].get('email').encode()).hexdigest()
+            event_logger.log(f"session_state['user_id']:{st.session_state['user_id']}",flag=4,name=__name__)
         logger.log(f"flag #{flag} | current_view initial config loaded; current_view:{st.session_state.get('current_view')}", name=__name__)
         
         

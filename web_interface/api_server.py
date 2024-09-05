@@ -17,6 +17,7 @@ class QueryCall(BaseModel):
 class SessionCall(BaseModel):
     session_id: str
     user_id: str
+    is_logged_in: bool
 
 class SearchHistory(BaseModel):
     session_id: str
@@ -26,14 +27,17 @@ class SearchHistory(BaseModel):
     is_logged_in: bool
 
 @app.delete("/history")
-def clear_search_history(input:SessionCall, connected:bool=False):
+def clear_search_history(input:SessionCall):
     # connect to db, and clear search history of session_id
     logger.log(f"clearing search history of session_id: {input.session_id}", name=__name__)
+    session_id = input.session_id
+    user_id = input.user_id
+    is_logged_in = input.is_logged_in
     try:
-        if connected:
-            query = f"DELETE FROM search_history WHERE user_id = '{input.user_id}'"
+        if is_logged_in:
+            query = f"DELETE FROM search_history WHERE user_id = '{user_id}'"
         else:
-            query = f"DELETE FROM search_history WHERE session_id = '{input.session_id}'"
+            query = f"DELETE FROM search_history WHERE session_id = '{session_id}'"
         if execute_query(database="streamlit", query=query):
             return {"status": "success", "message": "Search history cleared successfully"}
         else:
@@ -53,8 +57,8 @@ def save_search_history(input: SearchHistory):
         ### DB ERD
         # search_history (session_id, search_term, timestamp, user_id, is_logged_in)
         query = """
-        INSERT INTO search_history (session_id, search_term, timestamp, user_id, is_logged_in) 
-        VALUES (:session_id, :search_term, :timestamp, :user_id, :is_logged_in)
+        INSERT INTO search_history (session_id, search_term, timestamp, is_logged_in, user_id) 
+        VALUES (:session_id, :search_term, :timestamp, :is_logged_in, :user_id)
         """
         params = {
             "session_id": input.session_id,
@@ -73,11 +77,17 @@ def save_search_history(input: SearchHistory):
         return {"status": "error", "message": f"Exception occurred while saving search history: {str(e)}"}
 
 @app.get("/history")
-async def get_search_history(session_id: str)->list:
-    logger.log(f"Retrieving search history of session_id: {session_id}", name=__name__)
+async def get_search_history(session_id:str, user_id:str, is_logged_in:bool)->list:
+    if is_logged_in:
+        logger.log(f"Retrieving search history of user_id: {user_id}", name=__name__)
+    else:
+        logger.log(f"Retrieving search history of session_id: {session_id}", name=__name__)
     try:
         # Check if session_id exists in db
-        validate_query = f"SELECT COUNT(*) as count FROM search_history WHERE session_id = '{session_id}'"
+        if is_logged_in:
+            validate_query = f"SELECT COUNT(*) as count FROM search_history WHERE user_id = '{user_id}'"
+        else:
+            validate_query = f"SELECT COUNT(*) as count FROM search_history WHERE session_id = '{session_id}'"
         result = query_to_dataframe(database="streamlit", query=validate_query)
         
         if result.empty or result.iloc[0]['count'] == 0:
@@ -85,13 +95,23 @@ async def get_search_history(session_id: str)->list:
             return []
         
         # Get search history
-        get_query = f"SELECT * FROM search_history WHERE session_id = '{session_id}'"
+        if is_logged_in:
+            get_query = f"SELECT * FROM search_history WHERE user_id = '{user_id}'"
+        else:
+            get_query = f"SELECT * FROM search_history WHERE session_id = '{session_id}'"
         df = query_to_dataframe(database="streamlit", query=get_query)
         
         if df.empty:
-            logger.log(f"No search history found for session_id: {session_id}", name=__name__)
+            if is_logged_in:
+                logger.log(f"No search history found for user_id: {user_id}", name=__name__)
+            else:
+                logger.log(f"No search history found for session_id: {session_id}", name=__name__)
             return []
         else:
+            if is_logged_in:
+                logger.log(f"Search history retrieved successfully for user_id: {user_id}", name=__name__)
+            else:
+                logger.log(f"Search history retrieved successfully for session_id: {session_id}", name=__name__)
             serialized_df = df.astype(object).to_dict(orient='records')
             return serialized_df
     except Exception as e:
@@ -170,7 +190,7 @@ def create_db_engine(database:str, config):
     
 def execute_query(database:str, query:str, params:dict=None, config_path:str='config.json')->bool:
     """
-    Execute SQL query
+    Execute SQL query and return True if successful, False otherwise.
     - database: database name to connect
     - query: SQL query to execute
     - params: parameters for the query (optional)
@@ -187,14 +207,16 @@ def execute_query(database:str, query:str, params:dict=None, config_path:str='co
                     connection.execute(text(query), params)
                 else:
                     connection.execute(text(query))
+                connection.commit()
                 logger.log(f"query executed successfully", name=__name__)
+
             except Exception as e:
                 logger.log(f"Exception occurred while executing query: {e}", flag=1, name=__name__)
                 return False
         return True
     except Exception as e:
         logger.log(f"Exception occurred while executing query: {e}", flag=1, name=__name__)
-        return False
+        return Exception(e)
     
 
 def query_to_dataframe(database:str, query:str, config_path:str='config.json')->pd.DataFrame:
