@@ -1,7 +1,9 @@
-import json, boto3, logging, sys
+import json, boto3, sys, redis
 from farmhash import FarmHash32 as fhash
 from botocore.exceptions import ClientError
 import pandas as pd
+
+import logging_to_cloudwatch as ltc
 import utils
 
 
@@ -27,10 +29,15 @@ push_table_name = storage_info['restore_table_name']
 data_archive_bucket_name = storage_info['crawl_data_bucket_name']
 id_list_bucket_name = storage_info['id_storage_bucket_name']
 target_folder_prefix = storage_info['target_folder_prefix']['wanted_path']
+redis_id = storage_info['redis_conn_info']['id']
+redis_port = storage_info['redis_conn_info']['port']
+
+redis_sassion = redis.StrictRedis(host=redis_id, port=redis_port, db=0)
+logger = ltc.log('/aws/preprocessing/wanted-first','wanted_logs')
 
 
 def data_pre_process(df):
-    # 1. id key 생성
+    logger.info("Start data_pre_process.")
     try:
         df['id'] = "WAN" + df['company_name'] + df['job_id'].astype(str)
         df['id'] = df['id'].apply(lambda x: fhash(x))
@@ -42,9 +49,9 @@ def data_pre_process(df):
         df['site_symbol'] = "WAN"
         df['crawl_url'] = "https://www.wanted.co.kr/wd/" + df['job_id'].astype(str)
     except KeyError as e:
-        logging.error(f"KeyError: {e} - Available columns: {df.columns}")
+        logger.error(f"KeyError: {e} - Available columns: {df.columns}")
     except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
+        logger.error(f"An unexpected error occurred during data_pre_process: {e}")
     return df
 
 def upload_data(records):
@@ -62,6 +69,7 @@ def upload_data(records):
             batch.put_item(Item=item)
 
 def main():
+    logger.info("Start wanted first pre-processing code")
     new_columns = ['job_title', 'job_tasks', 'job_requirements', 'job_prefer', 'end_date', 'job_id', 'company_id', 'company_name', 'crawl_domain', 'get_date', 'id', 'site_symbol', 'crawl_url']
     metadata_list = utils.get_bucket_metadata(s3, pull_bucket_name,target_folder_prefix)
     if metadata_list:
@@ -78,18 +86,21 @@ def main():
                 preprocessed_df = data_pre_process(pd.DataFrame(json_list))
                 preprocessed_df.columns = new_columns
                 unique_df = preprocessed_df.drop_duplicates(subset='id', keep='first')
-                upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, unique_df)
-                filtered_df = unique_df[unique_df['id'].isin(upload_record_ids)]
+                #upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, unique_df)
+                upload_ids_records = utils.check_id_in_redis(logger, redis_sassion, unique_df.to_dict(orient='records'))
+                filtered_df = unique_df[unique_df['id'].isin([record['id'] for record in upload_ids_records])]
                 upload_data(filtered_df.to_dict(orient='records'))
-                update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
+                utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)
+                print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
+                #update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
             except json.JSONDecodeError as e:
-                logging.error(f"JSONDecodeError encountered: {e}")
+                logger.error(f"JSONDecodeError encountered: {e}")
                 continue
             except ClientError as e:
-                logging.error(f"ClientError encountered: {e}")
+                logger.error(f"ClientError encountered: {e}")
                 continue
             except Exception as e:
-                logging.error(f"An unexpected error occurred: {e}")
+                logger.error(f"An unexpected error occurred: {e}")
                 s3.copy({"Bucket":data_archive_bucket_name, "Key":obj["Key"]}, pull_bucket_name,obj['Key'])
                 continue
         sys.exit(0) # return True
