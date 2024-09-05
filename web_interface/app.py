@@ -139,7 +139,7 @@ def main():
             event_logger.log(f"session_state['current_view']:{st.session_state.get('current_view')}",flag=4,name=__name__)
         elif st.session_state.get('current_view') == "filter_log":
             logger.log(f"flag #{flag} | displaying filter_log page", name=__name__)
-            views.display_filter_log(logger)
+            views.display_history(logger)
             event_logger.log(f"session_state['current_view']:{st.session_state.get('current_view')}",flag=4,name=__name__)
         else:
             logger.log(f"flag #{flag} | session state not correctly set; plz check logic flow", name=__name__, flag=1)

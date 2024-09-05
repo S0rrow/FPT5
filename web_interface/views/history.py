@@ -95,7 +95,7 @@ def get_search_history(endpoint:str, logger)->pd.DataFrame:
         logger.log(f"Exception occurred while retrieving search history: {e}", flag=1, name=method_name)
         return None
 
-def display_filter_log(logger):
+def display_history(logger):
     method_name = __name__+".display_filter_log"
     logger.log(f"rendering filter_log page...", name=method_name)
     try:
