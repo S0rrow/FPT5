@@ -31,7 +31,7 @@ s3 = session.client('s3')
 
 # redis 연결 작업
 redis_ip = storage_info['redis_conn_info']['ip']
-redis_port = storage_info['redis_conn_info']['prot']
+redis_port = storage_info['redis_conn_info']['port']
 redis_sassion = redis.StrictRedis(host=redis_ip, port=redis_port, db=0)
 
 '''
