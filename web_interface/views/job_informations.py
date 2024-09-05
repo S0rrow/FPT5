@@ -5,106 +5,8 @@ import matplotlib.pyplot as plt
 from collections import Counter
 from datetime import datetime
 from .utils import Logger
-
-def load_config(config_path:str='config.json'):
-    with open(config_path, 'r') as f:
-        return json.load(f)
-
-### retrieve search history from endpoint as dataframe
-def get_search_history(endpoint:str, logger)->pd.DataFrame:
-    '''
-        Get search history from the endpoint
-        - endpoint: API endpoint
-        - session_id: session id to get search history
-        - logger: logger to log the exception
-    '''
-    session_id = st.session_state['session_id']
-    user_id = st.session_state.get('user_id', "")
-    is_logged_in = st.session_state.get('connected', False)
-    # @app.get("/history")
-    # async def get_search_history(session_id:str, user_id:str, is_logged_in:bool)->list:
+from .datastore import get_job_informations, get_search_history, save_search_history, load_config
     
-    history_response = requests.get(endpoint, params={"session_id":session_id, "user_id":user_id, "is_logged_in":is_logged_in})
-    # result is serialized dataframe
-    # check if result is not empty and status code is 200
-    if history_response.status_code == 200 and history_response.text:
-        if is_logged_in and user_id is None:
-            logger.log("No user id found", name=__name__, flag=1)
-            return None
-        elif not is_logged_in and session_id is None:
-            logger.log("No session id found", name=__name__, flag=1)
-            return None
-        else:
-            if is_logged_in:
-                logger.log(f"Search history retrieved successfully from user_id: {user_id}", name=__name__)
-            else:
-                logger.log(f"Search history retrieved successfully from session_id: {session_id}", name=__name__)
-            # deserialize dataframe
-        return pd.DataFrame(json.loads(history_response.text))
-    else:
-        logger.log(f"Exception occurred while retrieving search history: {history_response}", flag=1, name=__name__)
-        return None
-    
-### filter search history
-def filter_search_history(search_history:pd.DataFrame, logger:Logger, connected:bool=False)->pd.DataFrame:
-    '''
-        Filter search history with connected status.
-        If connected is False, return search history according to the session id.
-        If connected is True, return according to user_id.
-        - search_history: search history to filter
-        - logger: logger to log the exception
-        - connected: connected status
-    '''
-    if connected:
-        ## if connected, return search history according to user_id
-        return search_history[search_history['user_id'] == st.session_state['user_id']]
-    else:
-        ## if not connected, return search history according to session_id
-        return search_history[search_history['session_id'] == st.session_state['session_id']]
-        
-### save search history to endpoint and return status as boolean
-def save_search_history(endpoint:str, search_history:dict, logger)->requests.Response:
-    '''
-        Save search history to the endpoint
-        - endpoint: API endpoint
-        - search_history: search history to save
-        - logger: logger to log the exception
-    '''   
-    try:
-        logger.log(f"Search history to save: {search_history}", name=__name__)
-        payloads = {
-            "session_id": st.session_state['session_id'],
-            "search_history": search_history,
-            "timestamp": datetime.now().isoformat(),
-            "user_id": st.session_state.get('user_id', ""),
-            "is_logged_in": st.session_state.get('connected', False),
-        }
-        save_history_response = requests.post(endpoint, json=payloads)
-        return save_history_response
-    except Exception as e:
-        logger.log(f"Exception occurred while saving search history: {e}", flag=1, name=__name__)
-        return False
-
-### retrieve dataframe from endpoint
-@st.cache_data
-def get_job_informations(_logger, endpoint:str, database:str, query:str)->pd.DataFrame:
-    '''
-        Send query as post method to the endpoint, and return query results in pandas dataframe format.
-        - endpoint: API endpoint
-        - database: database name to use
-        - query: sql query to execute in database
-    '''
-    try:
-        _logger.log(f"getting dataframe...", name=__name__)
-        payload = {"database":f"{database}", "query":f"{query}"}
-        query_result = json.loads(requests.post(endpoint, data=json.dumps(payload)).text)
-        _logger.log(f"query result : {query_result}", name=__name__)
-        df = pd.DataFrame(query_result)
-        return df
-    except Exception as e:
-        _logger.log(f"Exception occurred while getting dataframe: {e}", flag=1, name=__name__)
-        return None
-
 ### render charts
 def plot_pie_chart(stack_counts):
     fig, ax = plt.subplots()
@@ -140,6 +42,7 @@ def plot_horizontal_bar_chart(stack_counts):
     st.subheader("Tech Stacks as Horizontal Bar Chart")
     st.pyplot(fig)
     
+### render filters if user wants to filter data and search specific records
 def display_filters(df:pd.DataFrame, search_history:pd.DataFrame, logger)->pd.DataFrame:
     '''
     Generate filters for each column in the dataframe.
@@ -241,7 +144,6 @@ def display_filters(df:pd.DataFrame, search_history:pd.DataFrame, logger)->pd.Da
 
 
 ### page display
-
 def display_job_informations(logger, url:str=None, database:str=None, query:str=None):
     '''
         display job informations retreived from given url
