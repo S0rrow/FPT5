@@ -1,19 +1,9 @@
-import requests
-from bs4 import BeautifulSoup
 from datetime import datetime
-import subprocess, os, sys
-import re
-import time
-import pandas as pd
-import subprocess, os
-from farmhash import FarmHash32 as fhash
-import pytz
-import json, boto3, pytz
+import sys, re, pytz, json, boto3
+
 from jobkorea import jobkorea
-
-import utils
 from logging_to_cloudwatch import log
-
+import utils
 
 def get_time():
     kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
@@ -23,8 +13,6 @@ def get_time():
 def get_bucket_metadata(s3_client, pull_bucket_name,target_folder_prefix):
     # 특정 폴더 내 파일 목록 가져오기
     response = s3_client.list_objects_v2(Bucket=pull_bucket_name, Prefix=target_folder_prefix, Delimiter='/')
-    curr_date = utils.get_curr_kst_time()
-    kst_tz = utils.set_kst_timezone()
 
     if 'Contents' in response:
         return [obj for obj in response['Contents']]
