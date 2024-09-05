@@ -1,14 +1,7 @@
-import farmhash
+import re, json, datetime, boto3, redis, sys, farmhash
 import pandas as pd
-import pytz
-import boto3
-import json
-import os, sys
-import datetime
 from json.decoder import JSONDecodeError
 from botocore.exceptions import ClientError
-import re
-from decimal import Decimal
 import logging
 
 import utils 
@@ -35,6 +28,11 @@ session = boto3.Session(
     region_name=key['region']
 )
 s3 = session.client('s3')
+
+# redis 연결 작업
+redis_ip = storage_info['redis_conn_info']['ip']
+redis_port = storage_info['redis_conn_info']['prot']
+redis_sassion = redis.StrictRedis(host=redis_ip, port=redis_port, db=0)
 
 '''
 S3의 특정 버킷에서 json 형식의 데이터를 가져와
@@ -162,7 +160,11 @@ def main():
         if df is not None and not df.empty:
             preprocessed_df = preprocessing(df)
             unique_df = preprocessed_df.drop_duplicates(subset='id', keep='first')
-            upload_data(unique_df.to_dict(orient='records'))
+            upload_ids_records = utils.check_id_in_redis(logger, redis_sassion, unique_df.to_dict(orient='records'))
+            filtered_df = unique_df[unique_df['id'].isin([record['id'] for record in upload_ids_records])]
+            upload_data(filtered_df.to_dict(orient='records'))
+            utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)
+            print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
         # df가 없는 경우 전처리 진행 하지 않음
         else:
             logger.info('No task for preprocessing.')
