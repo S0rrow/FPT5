@@ -1,6 +1,7 @@
 import streamlit as st
+from .utils import Logger
 
-def display_error_page(logger):
+def display_error_page(logger:Logger):
     logger.log(f"error page displalying...", name=__name__)
     st.title("Something went wrong...")
     st.write("""
