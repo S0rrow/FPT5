@@ -79,7 +79,7 @@ with DAG(
     first_preprocessing = KubernetesPodOperator(
         task_id='first_preprocessing_wanted',
         namespace='airflow',
-        image='ghcr.io/abel3005/first_preprocessing:latest',
+        image='ghcr.io/abel3005/first_preprocessing:2.0',
         cmds=["/bin/bash", "-c"],
         arguments=["sh /mnt/data/airflow/wanted_preprocessing/runner.sh"],
         name='first_preprocessing_wanted',

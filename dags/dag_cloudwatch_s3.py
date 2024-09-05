@@ -40,7 +40,7 @@ with DAG(
     send_log = KubernetesPodOperator(
         task_id='send_log',
         namespace='airflow',
-        image='ghcr.io/abel3005/first_preprocessing:latest',
+        image='ghcr.io/abel3005/first_preprocessing:1.0',
         cmds=["/bin/bash", "-c"],
         arguments=["sh /mnt/data/airflow/logging/runner.sh"],
         name='send_log',
