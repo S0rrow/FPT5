@@ -8,9 +8,10 @@ import pandas as pd
 import subprocess, os
 from farmhash import FarmHash32 as fhash
 import pytz
-from utils import get_curr_kst_time,set_kst_timezone
 import json, boto3, pytz
 from jobkorea import jobkorea
+
+import utils
 from logging_to_cloudwatch import log
 
 
@@ -22,8 +23,8 @@ def get_time():
 def get_bucket_metadata(s3_client, pull_bucket_name,target_folder_prefix):
     # 특정 폴더 내 파일 목록 가져오기
     response = s3_client.list_objects_v2(Bucket=pull_bucket_name, Prefix=target_folder_prefix, Delimiter='/')
-    curr_date = get_curr_kst_time()
-    kst_tz = set_kst_timezone()
+    curr_date = utils.get_curr_kst_time()
+    kst_tz = utils.set_kst_timezone()
 
     if 'Contents' in response:
         return [obj for obj in response['Contents']]
@@ -88,10 +89,13 @@ def main():
             cleaned_text = re.sub(r'[\r\u2028\u2029]+', ' ', json_context) # 파싱을 위해 unuseal line terminators 제거
             json_list = [json.loads(line) for line in cleaned_text.strip().splitlines()] # pandas format으로 맞추기
             instance = jobkorea(logger)
-            result = instance.pre_processing_first(json_list)
-            if len(result):
-                upload_data(logger,result,aws_key,push_table_name)
-            
+            result_df = instance.pre_processing_first(json_list)
+            unique_df = result_df.drop_duplicates(subset='id', keep='first')
+            upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, unique_df)
+            filtered_df = unique_df[unique_df['id'].isin(upload_record_ids)]
+            if len(filtered_df):
+                upload_data(logger,filtered_df,aws_key,push_table_name)
+                update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
         except Exception as e:
             s3.copy({"Bucket":data_archive_bucket_name,"Key":obj["Key"]},pull_bucket_name,obj["Key"])
             logger.error(f"{obj['Key']} upload error")
