@@ -11,53 +11,50 @@ import re
 from decimal import Decimal
 import logging
 
-import utils
+import utils 
 
-# 로깅 설정
+## key를 전역 변수로 설정
+path = '/mnt/data/airflow/.KEYS/'  # local file path
+with open(f'{path}/FIRST_PREPROCESSING_KEY.json', 'r') as f:
+    key = json.load(f)
+with open(f'{path}/DATA_SRC_INFO.json', 'r') as f:
+    storage_info = json.load(f)
+
+# 로깅 설정 복원
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[logging.FileHandler("app.log"), logging.StreamHandler()]
 )
+logger = logging.getLogger()
 
-def access_keys(path):
-    try:
-        with open(f'{path}/FIRST_PREPROCESSING_KEY.json', 'r') as f:
-            key = json.load(f)
-        with open(f'{path}/DATA_SRC_INFO.json', 'r') as f:
-            storage_info = json.load(f)
-        logging.info(f"Access keys and bucket info loaded successfully from {path}")
-        return key, storage_info
-    except FileNotFoundError as e:
-        logging.error(f"File not found: {e}")
-        raise
-    except JSONDecodeError as e:
-        logging.error(f"JSON decode error: {e}")
-        raise
-    except Exception as e:
-        logging.error(f"An error occurred while accessing keys: {e}")
-        raise
+# S3 세션 전역 변수로 선언
+session = boto3.Session(
+    aws_access_key_id=key['aws_access_key_id'],
+    aws_secret_access_key=key['aws_secret_key'],
+    region_name=key['region']
+)
+s3 = session.client('s3')
 
-def import_bucket(key, storage_info):
+'''
+S3의 특정 버킷에서 json 형식의 데이터를 가져와
+lake > archive로 크롤링한 데이터를 이식합니다.
+'''
+def import_bucket():
     pull_bucket_name = storage_info['pull_bucket_name']
     data_archive_bucket_name = storage_info['crawl_data_bucket_name']
 
     try:
-        session = boto3.Session(
-            aws_access_key_id=key['aws_access_key_id'],
-            aws_secret_access_key=key['aws_secret_key'],
-            region_name=key['region']
-        )
-        s3 = session.client('s3')
-
         response = s3.list_objects_v2(Bucket=pull_bucket_name, Prefix='rocketpunch')
         if 'Contents' not in response:
-            logging.warning(f"No objects found in the bucket: {pull_bucket_name}")
+            logger.warning(f"No objects found in the bucket: {pull_bucket_name}")
             return None
-
+        
+        logger.info(f"Object found in the bucket: {pull_bucket_name}")
         all_data = []
         for obj in response['Contents']:
             try:
+                # s3에서 데이터를 가져와 all_data 리스트에 데이터를 담습니다.
                 s3_response = s3.get_object(Bucket=pull_bucket_name, Key=obj['Key'])
                 json_context = s3_response['Body'].read().decode('utf-8')
                 cleaned_text = re.sub(r'[\r\u2028\u2029]+', ' ', json_context)
@@ -65,47 +62,51 @@ def import_bucket(key, storage_info):
                 data = pd.DataFrame(json_list)
                 all_data.append(data)
 
-                # Copy and delete the processed file
+                # 파일 이동 및 삭제
                 copy_source = {"Bucket": pull_bucket_name, "Key": obj['Key']}
+                logger.info("Start to Copy data from lake to archive")
                 s3.copy(copy_source, data_archive_bucket_name, obj['Key'])
+                logger.info("Start to Delete data from lake")
                 s3.delete_object(Bucket=pull_bucket_name, Key=obj['Key'])
-                logging.info(f"Processed and moved file {obj['Key']} from {pull_bucket_name} to {data_archive_bucket_name}")
+                logger.info(f"Processed and moved file {obj['Key']}")
 
             except JSONDecodeError as e:
-                logging.error(f"JSONDecodeError encountered while processing {obj['Key']}: {e}")
+                logger.error(f"JSONDecodeError while processing {obj['Key']}: {e}")
             except ClientError as e:
-                logging.error(f"ClientError encountered while accessing S3: {e}")
+                logger.error(f"ClientError while accessing S3: {e}")
             except Exception as e:
-                logging.error(f"An unexpected error occurred while processing {obj['Key']}: {e}")
+                logger.error(f"An unexpected error occurred while processing {obj['Key']}: {e}")
 
+        # all_data가 있는 경우 pandas concat으로 합친 값을 return 합니다.
+        # 없는 경우, none 타입으로 return 합니다.
         if all_data:
-            logging.info(f"Data successfully imported from bucket {pull_bucket_name}")
+            logger.info(f"Data successfully imported from bucket {pull_bucket_name}")
             return pd.concat(all_data, ignore_index=True)
         else:
-            logging.info(f"No data to import from bucket {pull_bucket_name}")
+            logger.info(f"No data to import from bucket {pull_bucket_name}")
             return None
 
     except Exception as e:
-        logging.error(f"An error occurred while importing bucket data: {e}")
+        logger.error(f"An error occurred while importing bucket data: {e}")
         raise
 
-# TODO: record 단위로 putitem 하는 것 대신 모든 전처리 작업 완료 후 전체 record를 df로 반환할 것
-def preprocessing(df, key):
-    logging.info("Preprocessing started")
-    precessed_list = [] # 수정한 부분
+'''
+ 전처리를 진행합니다. 
+ 규칙은 pre-processing_policy.md의 규칙을 따릅니다.
+'''
+def preprocessing(df):
+    logger.info("Preprocessing started")
+    processed_list = [] 
     for i, data in df.iterrows():
         try:
             processing_dict = {}
-            # Data processing logic
             if pd.notnull(data['job_task']):
                 processing_dict['job_tasks'] = ' '.join(
-                    [item for item in re.sub(r'[^.,/\-+()\s\w]', ' ',
-                        re.sub(r'\\/', '/', data['job_task'])).split() if item not in ['-', '+']]
+                    [item for item in re.sub(r'[^.,/\-+()\s\w]', ' ', re.sub(r'\\/', '/', data['job_task'])).split() if item not in ['-', '+']]
                 )
             processing_dict['stacks'] = re.sub(r'\\/', '/', data['job_specialties'])
             processing_dict['job_requirements'] = ' '.join(
-                [item for item in re.sub(r'[^.,/\-+()\s\w]', ' ',
-                    re.sub(r'\\/', '/', data['job_detail'])).split() if item not in ['-', '+']]
+                [item for item in re.sub(r'[^.,/\-+()\s\w]', ' ', re.sub(r'\\/', '/', data['job_detail'])).split() if item not in ['-', '+']]
             )
             processing_dict['indurstry_type'] = re.sub(r'\\/', '/', data['job_industry'])
 
@@ -118,7 +119,7 @@ def preprocessing(df, key):
             else:
                 processing_dict['end_date'] = 'null'
 
-            processing_dict['required_career'] = any(career in "신입" for career in data['job_career'])
+            processing_dict['required_career'] = "신입" in data['job_career']
             processing_dict['site_symbol'] = "RP"
             processing_dict['crawl_url'] = data['job_url']
             processing_dict['crawl_domain'] = data['crawl_domain']
@@ -129,78 +130,47 @@ def preprocessing(df, key):
             dt = datetime.datetime.strptime(data['timestamp'], "%Y-%m-%d_%H:%M:%S")
             processing_dict['get_date'] = int(dt.timestamp())
 
-            # Export to DynamoDB
-            #export_dynamo(processing_dict, key)
-            precessed_list.append(processing_dict) # 수정한 부분
-            logging.info(f"Successfully processed data row {i}")
+            processed_list.append(processing_dict) 
+            logger.info(f"Successfully processed data row {i}")
 
         except Exception as e:
-            logging.error(f"An error occurred during preprocessing row {i}: {e}")
+            logger.error(f"An error occurred during preprocessing row {i}: {e}")
     
-    return precessed_list
+    return pd.DataFrame(processed_list)
 
-def export_dynamo(processing_dict, key):
-    try:
-        dynamodb = boto3.resource(
-            'dynamodb',
-            aws_access_key_id=key['aws_access_key_id'],
-            aws_secret_access_key=key['aws_secret_key'],
-            region_name=key['region']
-        )
 
-        table = dynamodb.Table('merged-data-table')
-
-        for k, v in processing_dict.items():
-            if isinstance(v, float):
-                processing_dict[k] = Decimal(str(v))
-
-        processing_dict = {k: (v if pd.notnull(v) else None) for k, v in processing_dict.items()}
-
-        table.put_item(Item=processing_dict)
-        logging.info(f"Data successfully exported to DynamoDB: {processing_dict['id']}")
-
-    except ClientError as e:
-        logging.error(f"ClientError encountered while exporting to DynamoDB: {e}")
-        raise
-    except Exception as e:
-        logging.error(f"An unexpected error occurred while exporting to DynamoDB: {e}")
-        raise
-
-# TODO: 추가된 batch 단위 upload 함수 이 함수를 사용하거나 참고하여 반영할 것
+'''
+ 데이터프레임의 데이터를 DynamoDB에 업로드합니다.
+ batch 형식으로 각 25개씩 dynamoDB에 넣습니다.
+'''
 def upload_data(records):
-    # DynamoDB 클라이언트 생성
     dynamodb = boto3.resource(
         'dynamodb',
-        aws_access_key_id=aws_key['aws_access_key_id'],
-        aws_secret_access_key=aws_key['aws_secret_key'],
-        region_name=aws_key['region']
+        aws_access_key_id=key['aws_access_key_id'],
+        aws_secret_access_key=key['aws_secret_key'],
+        region_name=key['region']
     )
-    table = dynamodb.Table(push_table_name)
-    # 25개씩 묶어서 배치로 처리
+    table = dynamodb.Table(storage_info['restore_table_name'])
     with table.batch_writer() as batch:
         for item in records:
             batch.put_item(Item=item)
 
 def main():
-    file_path = '/mnt/data/airflow/.KEYS/'  # local file path
     try:
-        key, storage_info = access_keys(file_path)
-        df = import_bucket(key, storage_info)
-
+        df = import_bucket()
+        # df가 있는 경우만 전처리 진행
         if df is not None and not df.empty:
-            precessed_list = preprocessing(df, key)
-            preprocessed_df = pd.Dataframe(precessed_list)
+            preprocessed_df = preprocessing(df)
             unique_df = preprocessed_df.drop_duplicates(subset='id', keep='first')
-            # TODO: remove_duplicate_id 함수를 사용할려면 s3 색션과 id_list_buket_name을 가져와야됨 s3 init 관련을 전역으로 빼거나 추가 조치를 취할 것
-            upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, unique_df)
-            filtered_df = unique_df[unique_df['id'].isin(upload_record_ids)]
-            upload_data(filtered_df.to_dict(orient='records'))
+            upload_data(unique_df.to_dict(orient='records'))
+        # df가 없는 경우 전처리 진행 하지 않음
         else:
-            logging.info('No task for preprocessing.')
+            logger.info('No task for preprocessing.')
         sys.exit(0)
     except Exception as e:
-        logging.error(f"An error occurred in the main function: {e}")
+        logger.error(f"An error occurred in the main function: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
     main()
+
