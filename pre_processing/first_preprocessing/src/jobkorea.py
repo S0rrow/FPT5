@@ -1,17 +1,12 @@
-import requests
+import requests, re, json, time, pytz, boto3
+import pandas as pd
 from bs4 import BeautifulSoup
 from datetime import datetime
-import subprocess, os
-import re
-import time
-import pandas as pd
-import subprocess, os
 from time import gmtime, strftime
-import pytz
 from farmhash import FarmHash32 as fhash
 
 
-def log(msg, flag=None, path="./logs"):
+"""def log(msg, flag=None, path="./logs"):
     if flag==None:
         flag = 0
     head = ["DEBUG", "ERROR", "WARN", "STATUS", "INFO"]
@@ -23,7 +18,7 @@ def log(msg, flag=None, path="./logs"):
     if not os.path.isfile(f"{path}/{head[flag]}.log"):
         assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" > {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
     else: assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" >> {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
-
+"""
 def get_time():
     kst_tz = pytz.timezone('Asia/Seoul')
     return datetime.strftime(datetime.now().astimezone(kst_tz),"%Y-%m-%d_%H%M%S")

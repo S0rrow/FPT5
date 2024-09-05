@@ -1,6 +1,6 @@
 # 전체 코드
 from farmhash import FarmHash32 as fhash
-import json, boto3, pytz, requests, re, os, sys
+import json, boto3, pytz, requests, re, os, sys, redis
 import pandas as pd
 import logging_to_cloudwatch as ltc
 import utils
@@ -15,7 +15,7 @@ def get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix):
     if 'Contents' in response:
         # return [obj for obj in response['Contents'] if curr_date <= obj['LastModified'].astimezone(kst_tz).date()]
         return response['Contents']
-    print("No objects found in the folder.")
+    logger.error(f"No objects founded in the S3 {pull_bucket_name}/{target_folder_prefix}.")
     return None
 
 def replace_strings(text):
@@ -32,7 +32,8 @@ def replace_strings(text):
     return None if text == "" else text # 처리 후 빈 문자열이면 None 반환
 
 def tagid_to_tagname(tags, job_table):
-    """job_table 데이터프레임을 사용하여 tags 숫자와 매칭 리스트를 반환
+    """
+    job_table 데이터프레임을 사용하여 tags 숫자와 매칭 리스트를 반환
     Args:
         tags (int): df['jobCategoryIds']
         job_table (pandas.DataFrame): job_category_table
@@ -210,10 +211,13 @@ def main():
     pull_bucket_name = storage_info['pull_bucket_name']
     push_table_name = storage_info['restore_table_name']
     data_archive_bucket_name = storage_info['crawl_data_bucket_name']
-    id_list_bucket_name = storage_info['id_storage_bucket_name']
+    #id_list_bucket_name = storage_info['id_storage_bucket_name']
+    redis_id = storage_info['redis_conn_info']['id']
+    redis_port = storage_info['redis_conn_info']['port']
     target_folder_prefix = storage_info['target_folder_prefix']['programmers_path']
 
-    kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
+    redis_sassion = redis.StrictRedis(host=redis_id, port=redis_port, db=0)
+    #kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
     data_list = get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix)
     # meatadata_list[0] is directory path so ignore this item
     # copy files in crawl-data-lake to 
@@ -232,12 +236,15 @@ def main():
             
             master_df = preprocess_dataframe(pd.DataFrame(json_list))
             unique_df = master_df.drop_duplicates(subset='id', keep='first')
-            upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, unique_df)
-            filtered_df = unique_df[unique_df['id'].isin(upload_record_ids)]
+            #upload_record_ids = utils.remove_duplicate_id(s3, id_list_bucket_name, unique_df)
+            upload_ids_records = utils.check_id_in_redis(logger, redis_sassion, unique_df.to_dict(orient='records'))
+            filtered_df = unique_df[unique_df['id'].isin([record['id'] for record in upload_ids_records])]
             if len(filtered_df): # 처리 완료시 dynamoDB에 적제
                 upload_data(filtered_df.to_dict(orient='records'),aws_key,push_table_name)
-                update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)       
-            
+                #update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
+                utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)       
+                print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
+                
         except Exception as e:
             logger.error(f"'{obj['Key']}' went wrong: {e}")
             error_data_list.append({obj['Key']})
@@ -250,10 +257,9 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-        print("All done properly!!")
+        logger.info("Programmers first pre-processing done")
         sys.exit(0)  # 정상 종료
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
         logger.error(f"An error occurred: {str(e)}")
         sys.exit(1)  # 비정상 종료
 
