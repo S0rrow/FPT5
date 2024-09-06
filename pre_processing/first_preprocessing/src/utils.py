@@ -116,6 +116,7 @@ def check_id_in_redis(logger, redis_sassion, records):
         else:
             logger.info(f"id {_id} already exist in redis. This id passed.")
     
+    logger.info(f"Completed check ids: target ids are {inited_id_records}")
     return inited_id_records
 
 # record에서 없는 id만 redis로 push
@@ -128,3 +129,29 @@ def upload_id_into_redis(logger, redis_sassion, records):
             logger.info(f"id {_id} init into redis.")
         else:
             logger.info(f"id {_id} already exist in redis. set id action dismissed")
+            
+def send_msg_to_sqs(logger, aws_session, sqs_path, site_symbol, records):
+    try:
+        update_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        sqs_client = aws_session.client('sqs')
+        message_body = {
+            "version": "2024-09-06",
+            "Mid": "target_id_list",
+            "Mid": site_symbol,
+            "records": records,
+            "send_date": update_date
+        }
+
+        response = sqs_client.send_message(
+            QueueUrl=sqs_path,
+            MessageBody=json.dumps(message_body)
+        )
+        
+        logger.info(f"Message sent to SQS. Message ID: {response['MessageId']}")
+        return True
+    except ClientError as e:
+        logger.error(f"ClientError encountered: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unknow Error. encountered: {e}")
+        return False
