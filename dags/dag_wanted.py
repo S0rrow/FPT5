@@ -70,6 +70,12 @@ def send_message_to_sqs(ti, **kwargs):
 
     print(f"Message sent to SQS. Message ID: {response['MessageId']}")
 
+def test_print(ti, **kwargs):
+    # XCom으로부터 출력된 값 가져오기
+    message_body = ti.xcom_pull(task_ids='first_preprocessing_wanted')
+    print(f"Pulled message body: {message_body}")
+    reutrn True
+
 with DAG(
     dag_id='wanted_first_preprocessing',
     default_args=default_args,
@@ -122,6 +128,13 @@ with DAG(
         dag=dag
     )
 
+    test_print_message = PythonOperator(
+        task_id='test_print_message',
+        python_callable=test_print,
+        provide_context=True,  # XCom 값을 가져오기 위해 context 제공
+        dag=dag
+    )
+
     trigger_2nd_preprocessing = TriggerDagRunOperator(
         task_id='trigger_second_preprocessing',
         trigger_dag_id='second_preprocessing',   # 실행할 second_preprocessing DAG의 DAG ID
@@ -130,4 +143,4 @@ with DAG(
         trigger_rule='all_success',
     )
     
-    wait_for_message >> start_analyze_message >> first_preprocessing >> delete_message >> send_to_sqs_task >> trigger_2nd_preprocessing
+    wait_for_message >> start_analyze_message >> first_preprocessing >> delete_message >> test_print_message >> trigger_2nd_preprocessing
