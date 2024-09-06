@@ -53,7 +53,4 @@ class cloudwatch_handler(logging.Handler):
         except (NoCredentialsError, PartialCredentialsError) as e:
             print(f"Credentials error: {e}")
         except Exception as e:
-<<<<<<< HEAD
-            print(f"Error sending log to CloudWatch: {e}")
-=======
             print(f"Error sending log to CloudWatch: {e}")
