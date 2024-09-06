@@ -7,7 +7,7 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from kubernetes.client import models as k8s
 from datetime import timedelta
-import json, boto3
+import json, boto3, logging
 
 default_args = {
     'owner': 'airflow',
@@ -73,7 +73,7 @@ def send_message_to_sqs(ti, **kwargs):
 def test_print(ti, **kwargs):
     # XCom으로부터 출력된 값 가져오기
     message_body = ti.xcom_pull(task_ids='first_preprocessing_wanted')
-    print(f"Pulled message body: {message_body}")
+    logging.info(f"Pulled message body: {message_body}")
     return True
 
 with DAG(
@@ -121,12 +121,13 @@ with DAG(
         trigger_rule='all_success',  # first_preprocessing이 성공했을 때만 실행
     )
 
-    send_to_sqs_task = PythonOperator(
+    """    send_to_sqs_task = PythonOperator(
         task_id='send_to_sqs',
         python_callable=send_message_to_sqs,
         provide_context=True,  # XCom 값을 가져오기 위해 context 제공
         dag=dag
     )
+    """
 
     test_print_message = PythonOperator(
         task_id='test_print_message',
