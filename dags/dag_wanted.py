@@ -1,10 +1,11 @@
 from airflow import DAG
+from airflow.utils.dates import days_ago
+from airflow.models import Variable
 from airflow.providers.amazon.aws.sensors.sqs import SqsSensor
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from kubernetes.client import models as k8s
-from airflow.utils.dates import days_ago
 from datetime import timedelta
 import json, boto3
 
@@ -18,6 +19,7 @@ default_args = {
 }
 
 sqs_client = boto3.client('sqs', region_name='ap-northeast-2')
+queue_url = Variable.get('sqs_queue_url')
 
 volume_mount = k8s.V1VolumeMount(
     name="airflow-worker-pvc",
@@ -46,12 +48,23 @@ def delete_message_from_sqs(**context):
     receipt_handle = context['ti'].xcom_pull(task_ids='analyze_message', key='receipt_handle')
     if receipt_handle:
         sqs_client.delete_message(
-            QueueUrl='https://sqs.ap-northeast-2.amazonaws.com/533267279103/first-preprocessing-message-queue',
+            QueueUrl=queue_url,
             ReceiptHandle=receipt_handle
         )
         #print(f"Message with ReceiptHandle {receipt_handle} deleted successfully.")
     # else:
     #     print("No ReceiptHandle found, skipping message deletion.")
+
+def send_message_to_sqs(ti, **kwargs):
+    # XCom으로부터 출력된 값 가져오기
+    message_body = ti.xcom_pull(task_ids='first_preprocessing_wanted')
+    # SQS 메시지 전송
+    response = sqs_client.send_message(
+        QueueUrl=queue_url,
+        MessageBody=message_body
+    )
+
+    print(f"Message sent to SQS. Message ID: {response['MessageId']}")
 
 with DAG(
     dag_id='wanted_first_preprocessing',
@@ -63,7 +76,7 @@ with DAG(
 
     wait_for_message = SqsSensor(
         task_id='wait_for_lambda_message',
-        sqs_queue='https://sqs.ap-northeast-2.amazonaws.com/533267279103/first-preprocessing-message-queue',
+        sqs_queue=queue_url,
         max_messages=4,
         wait_time_seconds=20,
         poke_interval=10,
@@ -97,7 +110,14 @@ with DAG(
         provide_context=True,
         trigger_rule='all_success',  # first_preprocessing이 성공했을 때만 실행
     )
-    
+
+    send_to_sqs_task = PythonOperator(
+        task_id='send_to_sqs',
+        python_callable=send_message_to_sqs,
+        provide_context=True,  # XCom 값을 가져오기 위해 context 제공
+        dag=dag
+    )
+
     trigger_2nd_preprocessing = TriggerDagRunOperator(
         task_id='trigger_second_preprocessing',
         trigger_dag_id='second_preprocessing',   # 실행할 second_preprocessing DAG의 DAG ID
@@ -106,4 +126,4 @@ with DAG(
         trigger_rule='all_success',
     )
     
-    wait_for_message >> start_analyze_message >> first_preprocessing >> delete_message >> trigger_2nd_preprocessing
+    wait_for_message >> start_analyze_message >> first_preprocessing >> delete_message >> send_to_sqs_task >> trigger_2nd_preprocessing
