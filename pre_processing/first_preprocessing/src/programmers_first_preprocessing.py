@@ -212,11 +212,11 @@ def main():
     push_table_name = storage_info['restore_table_name']
     data_archive_bucket_name = storage_info['crawl_data_bucket_name']
     #id_list_bucket_name = storage_info['id_storage_bucket_name']
-    redis_id = storage_info['redis_conn_info']['ip']
+    redis_ip = storage_info['redis_conn_info']['ip']
     redis_port = storage_info['redis_conn_info']['port']
     target_folder_prefix = storage_info['target_folder_prefix']['programmers_path']
 
-    redis_sassion = redis.StrictRedis(host=redis_id, port=redis_port, db=0)
+    redis_sassion = redis.StrictRedis(host=redis_ip, port=redis_port, db=0)
     #kst_tz = pytz.timezone('Asia/Seoul') # kst timezone 설정
     data_list = get_bucket_metadata(s3,pull_bucket_name,target_folder_prefix)
     # meatadata_list[0] is directory path so ignore this item
