@@ -58,6 +58,10 @@ def delete_message_from_sqs(**context):
 def send_message_to_sqs(ti, **kwargs):
     # XCom으로부터 출력된 값 가져오기
     message_body = ti.xcom_pull(task_ids='first_preprocessing_wanted')
+    
+    print(f"Pulled message body: {message_body}")
+    if message_body is None:
+        raise ValueError("Message body is None. XCom failed to pull the value.")
     # SQS 메시지 전송
     response = sqs_client.send_message(
         QueueUrl=queue_url,
