@@ -1,7 +1,6 @@
 from airflow import DAG
 from airflow.providers.amazon.aws.sensors.sqs import SqsSensor
 from airflow.operators.python_operator import PythonOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from kubernetes.client import models as k8s
 from airflow.utils.dates import days_ago
@@ -71,7 +70,7 @@ with DAG(
         region_name='ap-northeast-2',
     )
     
-    start_analyze_message = PythonOperator(
+    anolize_message = PythonOperator(
         task_id='analyze_message',
         python_callable=analyze_message,
         provide_context=True,
@@ -87,8 +86,6 @@ with DAG(
         volume_mounts=[volume_mount],
         volumes=[volume],
         dag=dag,
-        do_xcom_push=True,
-        trigger_rule='all_success',  # 이전 작업이 성공하면 실행
     )
 
     delete_message = PythonOperator(
@@ -98,12 +95,4 @@ with DAG(
         trigger_rule='all_success',  # first_preprocessing이 성공했을 때만 실행
     )
     
-    trigger_2nd_preprocessing = TriggerDagRunOperator(
-        task_id='trigger_second_preprocessing',
-        trigger_dag_id='second_preprocessing',   # 실행할 second_preprocessing DAG의 DAG ID
-        conf={"records": "{{ task_instance.xcom_pull(task_ids='first_preprocessing_rocketpunch') }}"},  # XCom 출력값 전달
-        wait_for_completion=False,  # True로 설정하면 second_preprocessing DAG가 완료될 때까지 현재 DAG 대기
-        trigger_rule='all_success',
-    )
-    
-    wait_for_message >> start_analyze_message >> first_preprocessing >> delete_message >> trigger_2nd_preprocessing
+    wait_for_message >> anolize_message >> first_preprocessing >> delete_message
