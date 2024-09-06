@@ -87,7 +87,7 @@ with DAG(
         volume_mounts=[volume_mount],
         volumes=[volume],
         dag=dag,
-        xcom_push=True,
+        do_xcom_push=True,
         trigger_rule='all_success',  # 이전 작업이 성공하면 실행
     )
 
