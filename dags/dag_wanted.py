@@ -74,7 +74,7 @@ def test_print(ti, **kwargs):
     # XCom으로부터 출력된 값 가져오기
     message_body = ti.xcom_pull(task_ids='first_preprocessing_wanted')
     print(f"Pulled message body: {message_body}")
-    reutrn True
+    return True
 
 with DAG(
     dag_id='wanted_first_preprocessing',
