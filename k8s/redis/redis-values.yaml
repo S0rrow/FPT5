@@ -1,0 +1,18 @@
+master:
+  persistence:
+    enabled: true
+    existingClaim: redis-pvc
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+
+replica:
+  persistence:
+    enabled: false
+
+image:
+  registry: docker.io
+  repository: bitnami/redis
+  tag: 6.2.13 
+
