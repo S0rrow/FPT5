@@ -41,24 +41,17 @@ def message_check_handler(**context):
     if response:
         message = response['Messages'][0]
         message_body = json.loads(message['Body'])
-        receipt_handle = message['ReceiptHandle']  # 추가
-        context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)  # 추가
+        receipt_handle = message['ReceiptHandle']
+        context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)  # 메세지 삭제를 위한 메세지 키값 추가
         data = message_body.get('records')
         if data:
-            context['ti'].xcom_push(key='data_key', value=data)
-            return True  # records 안에 id가 있다면 True
+            ids = [record['id'] for record in data]
+            context['ti'].xcom_push(key='id_list', value=ids)
+            return 'second_preprocessing'  # records 안에 id가 있다면 2차 전처리 실행
         else:
-            return False  # records 안에 id가 없다면 False
+            return 'skip_second_preprocessing'  # records 안에 id가 없다면 2차 전처리 스킵
     else:
-        return False  # 조건을 만족하지 않으면 다음 태스크를 실행하지 않음
-
-def check_massage_check_status(**context):
-    # XCom에서 start_message_handling의 결과를 가져옴
-    result = context['ti'].xcom_pull(task_ids='message_check')
-    if result:
-        return 'second_preprocessing'  # True일 경우 second_preprocessing 실행
-    else:
-        return 'skip_second_preprocessing'  # False일 경우 스킵
+        return 'skip_second_preprocessing'  # 조건을 만족하지 않으면 2차 전처리 스킵
 
 # 메시지 삭제 함수
 def delete_message_from_sqs(**context):
@@ -79,7 +72,6 @@ with DAG(
     max_active_runs=1
 ) as dag:
     
-    
     catch_sqs_message = SqsSensor(
         task_id='catch_sqs_message',
         sqs_queue=queue_url,
@@ -91,16 +83,11 @@ with DAG(
         dag=dag
     )
     
-    message_check = PythonOperator(
+    message_check = BranchPythonOperator(
         task_id='message_check',
         python_callable=message_check_handler,
-        dag=dag
-    )
-    
-    branch_task = BranchPythonOperator(
-        task_id='branch_task',
-        python_callable=check_massage_check_status,
-        dag=dag
+        dag=dag,
+        triger_rule='all_success'
     )
 
     second_preprocessing = KubernetesPodOperator(
@@ -108,12 +95,11 @@ with DAG(
         namespace='airflow',
         image='ghcr.io/abel3005/first_preprocessing:2.0',
         cmds=["/bin/bash", "-c"],
-        arguments=["sh /mnt/data/airflow/second_preprocessing/runner.sh", "{{ task_instance.xcom_pull(task_ids='message_check', key='data_key') }}"],
+        arguments=["sh /mnt/data/airflow/second_preprocessing/runner.sh", "{{ task_instance.xcom_pull(task_ids='message_check', key='id_list') }}"],
         name='second_preprocessing',
         volume_mounts=[volume_mount],
         volumes=[volume],
         dag=dag,
-        trigger_rule='all_success',
     )
     
     # second_preprocessing을 실행하지 않을 때를 위한 DummyOperator
@@ -125,10 +111,10 @@ with DAG(
     delete_message = PythonOperator(
         task_id='delete_sqs_message',
         python_callable=delete_message_from_sqs,
-        trigger_rule='all_done',  # 성공/실패와 상관없이 실행
+        trigger_rule='all_success',  # 성공/실패와 상관없이 실행
         dag=dag
     )
 
-catch_sqs_message >> message_check >> branch_task
-branch_task >> second_preprocessing >> delete_message
-branch_task >> skip_second_preprocessing >> delete_message
+catch_sqs_message >> message_check
+message_check >> second_preprocessing >> delete_message
+message_check >> skip_second_preprocessing >> delete_message
