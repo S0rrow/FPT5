@@ -28,10 +28,8 @@ volume = k8s.V1Volume(
     persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-worker-pvc"),
 )
 
-# 메시지 분석 함수
 def hello_word(**context):
     print("hello world!")
-
 
 with DAG(
     dag_id='dag_trigger_test',
@@ -56,6 +54,7 @@ with DAG(
         dag=dag
     )
     
+    # 아무 것도 실행 안하는 더미 task 생성시 사용
     dummy_test = DummyOperator(
         task_id='dummy_test'
     )
