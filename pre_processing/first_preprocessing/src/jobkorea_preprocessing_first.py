@@ -56,6 +56,7 @@ def main():
     pull_bucket_name = storage_info['pull_bucket_name']
     data_archive_bucket_name = storage_info['crawl_data_bucket_name']
     push_table_name = storage_info['restore_table_name']
+    target_id_queue_url = storage_info['target_id_sqs_queque_arn']
     #id_list_bucket_name = storage_info['id_storage_bucket_name']
     target_folder_prefix = storage_info['target_folder_prefix']['jobkorea_path']
     redis_ip = storage_info['redis_conn_info']['ip']
@@ -89,7 +90,8 @@ def main():
             if len(filtered_df):
                 upload_data(logger,filtered_df,aws_key,push_table_name)
                 utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)
-                print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
+                utils.send_msg_to_sqs(logger, session, target_id_queue_url, "JK", upload_ids_records)
+                #print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
                 #update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
         except Exception as e:
             s3.copy({"Bucket":data_archive_bucket_name,"Key":obj["Key"]},pull_bucket_name,obj["Key"])

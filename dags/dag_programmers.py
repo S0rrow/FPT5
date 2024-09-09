@@ -101,7 +101,7 @@ with DAG(
     trigger_2nd_preprocessing = TriggerDagRunOperator(
         task_id='trigger_second_preprocessing',
         trigger_dag_id='second_preprocessing',   # 실행할 second_preprocessing DAG의 DAG ID
-        conf={"records": "{{ task_instance.xcom_pull(task_ids='first_preprocessing_programmers') }}"},  # XCom 출력값 전달
+        #conf={"records": "{{ task_instance.xcom_pull(task_ids='first_preprocessing_programmers') }}"},  # XCom 출력값 전달
         wait_for_completion=False,  # True로 설정하면 second_preprocessing DAG가 완료될 때까지 현재 DAG 대기
         trigger_rule='all_success',
     )
