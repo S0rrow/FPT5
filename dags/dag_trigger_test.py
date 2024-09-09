@@ -44,11 +44,11 @@ with DAG(
         python_callable=hello_word,
         dag=dag
     )
-     
+    
     trigger_sample = TriggerDagRunOperator(
         task_id='trigger_sample',
         trigger_dag_id='test_dag2',   # trigger할 DAG id
-        conf={"records": "123,456,789"},  # 만약 airflow 단에서 다른 dag로 보낼 때 사용 보낸 데이터는 트리거 된 dag에서 옵션을 지정해야 쓸 수 있음
+        conf={"records": "2902426399,2791043566,136212018"},  # 만약 airflow 단에서 다른 dag로 보낼 때 사용 보낸 데이터는 트리거 된 dag에서 옵션을 지정해야 쓸 수 있음
         wait_for_completion=False,  # True로 설정하면 second_preprocessing DAG가 완료될 때까지 현재 DAG 대기
         trigger_rule='all_success', # 이전 작업이 성공해야 해당 task 실행
         dag=dag
