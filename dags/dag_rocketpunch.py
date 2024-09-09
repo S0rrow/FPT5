@@ -68,7 +68,7 @@ with DAG(
         max_messages=4,
         wait_time_seconds=20,
         poke_interval=10,
-        time_out=3600,
+        timeout=3600,
         aws_conn_id='sqs_event_handler_conn',
         region_name='ap-northeast-2',
     )
