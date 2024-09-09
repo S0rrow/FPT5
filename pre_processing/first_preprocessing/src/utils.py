@@ -129,7 +129,8 @@ def upload_id_into_redis(logger, redis_sassion, records):
             logger.info(f"id {_id} init into redis.")
         else:
             logger.info(f"id {_id} already exist in redis. set id action dismissed")
-            
+
+# dynamoDB로 put한 item들의 id 목록을 sqs를 통해 2차 전처리 DAG에게 전달
 def send_msg_to_sqs(logger, aws_session, sqs_path, site_symbol, records):
     try:
         update_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -137,7 +138,7 @@ def send_msg_to_sqs(logger, aws_session, sqs_path, site_symbol, records):
         message_body = {
             "version": "2024-09-06",
             "Mid": "target_id_list",
-            "Mid": site_symbol,
+            "site_symbol": site_symbol,
             "records": records,
             "send_date": update_date
         }
