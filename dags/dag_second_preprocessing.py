@@ -110,6 +110,7 @@ with DAG(
         trigger_rule='all_success'
     )
 
-# 종속성 설정 부분은 변경 없음
 catch_sqs_message >> message_check
-message_check >> [second_preprocessing, skip_second_preprocessing] >> delete_message
+message_check >> [second_preprocessing, skip_second_preprocessing]
+second_preprocessing >> delete_message
+skip_second_preprocessing >> delete_message
