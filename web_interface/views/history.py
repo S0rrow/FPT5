@@ -8,7 +8,6 @@ from .datastore import clear_search_history, load_config, get_search_history
 
 def display_history(logger):
     method_name = __name__+".display_history"
-    logger.log(f"rendering filter_log page...", name=method_name)
     try:
         config = load_config()
         endpoint = f"{config['API_URL']}/history"
@@ -46,16 +45,21 @@ def display_history(logger):
         col1, col2, col3 = st.columns(3, vertical_alignment="bottom")
         with col1:
             st.header("Filter Log")
+            logger.log(f"action:load, element:header", flag=4, name=method_name)
         with col2:
             clear_btn = st.button("Clear Filter Log")
+            logger.log(f"action:load, element:clear_button", flag=4, name=method_name)
             if clear_btn:
+                logger.log(f"action:click, element:clear_button", flag=4, name=method_name)
                 if clear_search_history(endpoint, logger):
                     st.success("Filter log cleared successfully")
                 else:
                     st.error("Failed to clear filter log")
         with col3:
             download_btn = st.button("Download Filter Log")
+            logger.log(f"action:load, element:download_button", flag=4, name=method_name)
             if download_btn:
+                logger.log(f"action:click, element:download_button", flag=4, name=method_name)
                 st.download_button(
                     label="Download Filter Log",
                     data=result.to_csv(index=False),
@@ -67,6 +71,7 @@ def display_history(logger):
             return
         else:
             st.dataframe(result, use_container_width=True)
+            logger.log(f"action:load, element:search_history_dataframe", flag=4, name=method_name)
             
     except Exception as e:
         logger.log(f"Exception occurred while rendering history: {e}", name=method_name, flag=1)

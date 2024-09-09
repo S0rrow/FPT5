@@ -48,6 +48,7 @@ def get_search_history(endpoint:str, logger)->pd.DataFrame:
         - session_id: session id to get search history
         - logger: logger to log the exception
     '''
+    method_name = __name__ + ".get_search_history"
     session_id = st.session_state['session_id']
     user_id = st.session_state.get('user_id', "")
     is_logged_in = st.session_state.get('connected', False)
@@ -59,20 +60,15 @@ def get_search_history(endpoint:str, logger)->pd.DataFrame:
     # check if result is not empty and status code is 200
     if history_response.status_code == 200 and history_response.text:
         if is_logged_in and user_id is None:
-            logger.log("No user id found", name=__name__, flag=1)
+            logger.log("No user id found", name=method_name, flag=1)
             return None
         elif not is_logged_in and session_id is None:
-            logger.log("No session id found", name=__name__, flag=1)
+            logger.log("No session id found", name=method_name, flag=1)
             return None
-        else:
-            if is_logged_in:
-                logger.log(f"Search history retrieved successfully from user_id: {user_id}", name=__name__)
-            else:
-                logger.log(f"Search history retrieved successfully from session_id: {session_id}", name=__name__)
             # deserialize dataframe
         return pd.DataFrame(json.loads(history_response.text))
     else:
-        logger.log(f"Exception occurred while retrieving search history: {history_response}", flag=1, name=__name__)
+        logger.log(f"Exception occurred while retrieving search history: {history_response}", flag=1, name=method_name)
         return None
     
 ### filter search history
@@ -85,6 +81,7 @@ def filter_search_history(search_history:pd.DataFrame, logger:Logger, connected:
         - logger: logger to log the exception
         - connected: connected status
     '''
+    method_name = __name__ + ".filter_search_history"
     if connected:
         ## if connected, return search history according to user_id
         return search_history[search_history['user_id'] == st.session_state['user_id']]
@@ -99,9 +96,9 @@ def save_search_history(endpoint:str, search_history:dict, logger)->requests.Res
         - endpoint: API endpoint
         - search_history: search history to save
         - logger: logger to log the exception
-    '''   
+    '''
+    method_name = __name__ + ".save_search_history"
     try:
-        logger.log(f"Search history to save: {search_history}", name=__name__)
         payloads = {
             "session_id": st.session_state['session_id'],
             "search_history": search_history,
@@ -112,7 +109,7 @@ def save_search_history(endpoint:str, search_history:dict, logger)->requests.Res
         save_history_response = requests.post(endpoint, json=payloads)
         return save_history_response
     except Exception as e:
-        logger.log(f"Exception occurred while saving search history: {e}", flag=1, name=__name__)
+        logger.log(f"Exception occurred while saving search history: {e}", flag=1, name=method_name)
         return False
 
 ### retrieve dataframe from endpoint
@@ -124,13 +121,12 @@ def get_job_informations(_logger, endpoint:str, database:str, query:str)->pd.Dat
         - database: database name to use
         - query: sql query to execute in database
     '''
+    method_name = __name__ + ".get_job_informations"
     try:
-        _logger.log(f"getting dataframe...", name=__name__)
         payload = {"database":f"{database}", "query":f"{query}"}
         query_result = json.loads(requests.post(endpoint, data=json.dumps(payload)).text)
-        _logger.log(f"query result : {query_result}", name=__name__)
         df = pd.DataFrame(query_result)
         return df
     except Exception as e:
-        _logger.log(f"Exception occurred while getting dataframe: {e}", flag=1, name=__name__)
+        _logger.log(f"Exception occurred while getting dataframe: {e}", flag=1, name=method_name)
         return None
