@@ -34,6 +34,9 @@ redis_ip = storage_info['redis_conn_info']['ip']
 redis_port = storage_info['redis_conn_info']['port']
 redis_sassion = redis.StrictRedis(host=redis_ip, port=redis_port, db=0)
 
+# sqs url get
+target_id_queue_url = storage_info['target_id_sqs_queque_arn']
+
 '''
 S3의 특정 버킷에서 json 형식의 데이터를 가져와
 lake > archive로 크롤링한 데이터를 이식합니다.
@@ -164,7 +167,8 @@ def main():
             filtered_df = unique_df[unique_df['id'].isin([record['id'] for record in upload_ids_records])]
             upload_data(filtered_df.to_dict(orient='records'))
             utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)
-            print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
+            utils.send_msg_to_sqs(logger, session, target_id_queue_url, "RP", upload_ids_records)
+            #print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
         # df가 없는 경우 전처리 진행 하지 않음
         else:
             logger.info('No task for preprocessing.')

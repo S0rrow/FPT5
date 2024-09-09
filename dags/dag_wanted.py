@@ -90,7 +90,7 @@ with DAG(
         trigger_rule='all_success',  # 이전 작업이 성공하면 실행
         dag=dag
     )
-    
+
     delete_message = PythonOperator(
         task_id='delete_sqs_message',
         python_callable=delete_message_from_sqs,
