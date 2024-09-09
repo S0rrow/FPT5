@@ -89,7 +89,7 @@ with DAG(
     second_preprocessing = KubernetesPodOperator(
         task_id='second_preprocessing',
         namespace='airflow',
-        image='ghcr.io/abel3005/first_preprocessing:2.0',
+        image='ghcr.io/abel3005/second_preprocessing:1.0',
         cmds=["/bin/bash", "-c"],
         # "/bin/bash", "-c", "sh ..." 형식으로 수정됨
         arguments=["sh", "/mnt/data/airflow/second_preprocessing/runner.sh", "{{ task_instance.xcom_pull(task_ids='message_check', key='id_list') }}"],  # 수정됨

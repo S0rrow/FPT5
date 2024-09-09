@@ -5,10 +5,12 @@ from farmhash import FarmHash32 as fhash
 import asyncio
 import time
 import botocore.exceptions
+from boto3.dynamodb.conditions import Key, Attr
 from datetime import datetime
 from logging_utils.logging_to_cloudwatch import log
+import sys
 
-async def send_data_async(logger,source_data,_response):
+async def send_data_async(logger,source_data,prompt_metadata,_response):
     prompt_data = prompt_metadata.get("data", {})
     try:
         for idx, _obj in enumerate(source_data):
@@ -88,7 +90,7 @@ def return_concat_data_record(obj, data_dict):
         "resume_required": obj.get("resume_required", None),
         "post_status": obj.get("post_status", None),
         "company_name": obj.get("company_name", None),
-        "cid": fhash(obj.get("site_symbol")+obj.get("company_name"),
+        "cid": fhash(obj.get("site_symbol")+obj.get("company_name")),
         "start_date": obj.get("start_date", None),
         "end_date": obj.get("end_date", None),
         "crawl_domain": obj.get("crawl_domain", None),
@@ -110,7 +112,7 @@ def upload_data(_item):
 
 
 
-def main():
+def main_debug():
     logger = log('/aws/preprocessing/second','logs')
     with open("../.KEYS/API_KEYS.json", "r") as f:
         key = json.load(f)
@@ -166,18 +168,73 @@ def main():
         ]
     )
 
-    dynamodb = boto3.resource(
-            'dynamodb',
-            aws_access_key_id=key['aws_access_key_id'],
-            aws_secret_access_key=key['aws_secret_key'],
-            region_name=key['region']
-        )
-    scan_kwargs = {}
-    source_data = []
-
     count = 10
     for i in range(len(source_data) // count):
         _response = [None for _ in range(count)]
         # 비동기 코드 실행
         asyncio.run(send_data_async(source_data[i:i+count],_response))
     asyncio.run(send_data_async(source_data[len(source_data)*count:],_response))
+    
+def main_debug():
+    id_list = list(map(int,sys.argv[1].split(',')))
+    logger = log('/aws/preprocessing/second','logs')
+    with open("../.KEYS/API_KEYS.json", "r") as f:
+        key = json.load(f)
+    # S3 버킷 정보 get
+    with open("../.KEYS/DATA_SRC_INFO.json", "r") as f:
+        bucket_info = json.load(f)
+
+    with open("../.KEYS/GEMINI_API_KEY.json", "r") as f:
+        gemini_api_key = json.load(f)
+
+    with open("../.DATA/PROMPT_INFO.json") as f:
+        prompt_metadata = json.load(f)
+
+    dynamo_table_name = bucket_info['restore_table_name']
+
+    dynamodb = boto3.resource(
+            'dynamodb',
+            aws_access_key_id=key['aws_access_key_id'],
+            aws_secret_access_key=key['aws_secret_key'],
+            region_name=key['region']
+        )
+    table = dynamodb.Table(dynamo_table_name)
+    source_data = []
+    for i in id_list:
+        source_data.append(table.query(Select='ALL_ATTRIBUTES',KeyConditionExpression=Key("id").eq(i)))
+    genai.configure(api_key=gemini_api_key['GEMINI_API'])
+
+    # Create the model
+    generation_config = {
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "top_k": 64,
+        "max_output_tokens": 8192,
+        "response_mime_type": "text/plain",
+    }
+
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        generation_config=generation_config,
+        # safety_settings = Adjust safety settings
+        # # See https://ai.google.dev/gemini-api/docs/safety-settings
+    )
+
+    chat_session = model.start_chat(
+        history=[
+
+        ]
+    )
+
+    count = 10
+    try:
+        _response = [None for _ in range(count)]
+        for i in range(len(source_data) // count):
+            # 비동기 코드 실행
+            asyncio.run(send_data_async(logger,source_data[i:i+count],prompt_metadata,_response))
+        asyncio.run(send_data_async(logger,source_data[len(source_data)*count:],prompt_metadata,_response))
+    except Exception as e:
+        logger.error(f'{_response} : {e}')
+    
+if __name__ == '__main__':
+    main()
