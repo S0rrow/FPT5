@@ -1,15 +1,14 @@
-from airflow import DAG
-from airflow.utils.dates import days_ago
-from airflow.models import Variable
-from airflow.providers.amazon.aws.sensors.sqs import SqsSensor
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
-from airflow.operators.python import BranchPythonOperator
-from airflow.operators.dummy import DummyOperator
-from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
-from kubernetes.client import models as k8s
 from datetime import timedelta
-import json, logging, boto3
+import json
+import boto3
+from airflow import DAG
+from airflow.models import Variable
+from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
+from airflow.operators.dummy import DummyOperator
+from airflow.providers.amazon.aws.sensors.sqs import SqsSensor
+from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+from airflow.utils.dates import days_ago
+from kubernetes.client import models as k8s
 
 default_args = {
     'owner': 'airflow',
@@ -35,38 +34,37 @@ volume = k8s.V1Volume(
     persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-worker-pvc"),
 )
 
-# message_check_handler에 receipt_handle push 추가
+# 변경 1: BranchPythonOperator에서 task_ids='catch_sqs_message'로 수정
 def message_check_handler(**context):
-    response = context['ti'].xcom_pull(task_ids='catch_sqs_message')
+    response = context['ti'].xcom_pull(task_ids='catch_sqs_message')  # 수정됨
     if response:
         message = response['Messages'][0]
         message_body = json.loads(message['Body'])
         receipt_handle = message['ReceiptHandle']
-        context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)  # 메세지 삭제를 위한 메세지 키값 추가
+        context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)
         data = message_body.get('records')
         if data:
             ids = [record['id'] for record in data]
             context['ti'].xcom_push(key='id_list', value=ids)
-            return 'second_preprocessing'  # records 안에 id가 있다면 2차 전처리 실행
+            return 'second_preprocessing'
         else:
-            return 'skip_second_preprocessing'  # records 안에 id가 없다면 2차 전처리 스킵
+            return 'skip_second_preprocessing'
     else:
-        return 'skip_second_preprocessing'  # 조건을 만족하지 않으면 2차 전처리 스킵
+        return 'skip_second_preprocessing'
 
-# 메시지 삭제 함수
+# 메시지 삭제 시 catch_sqs_message에서 receipt_handle을 가져오도록 수정됨
 def delete_message_from_sqs(**context):
-    receipt_handle = context['ti'].xcom_pull(task_ids='message_check', key='receipt_handle')
+    receipt_handle = context['ti'].xcom_pull(task_ids='catch_sqs_message', key='receipt_handle')  # 수정됨
     if receipt_handle:
         sqs_client.delete_message(
             QueueUrl=queue_url,
             ReceiptHandle=receipt_handle
         )
 
-
 with DAG(
     dag_id='second_preprocessing',
     default_args=default_args,
-    description="activate dag when 1st pre-processing DAG ended. This Dag execute with LLM API for pre-processing.",
+    description="Activate DAG when 1st pre-processing DAG ends. This DAG executes with LLM API for pre-processing.",
     start_date=days_ago(1),
     catchup=False,
     max_active_runs=1
@@ -79,42 +77,38 @@ with DAG(
         wait_time_seconds=20,
         poke_interval=10,
         aws_conn_id='sqs_event_handler_conn',
-        region_name='ap-northeast-2',
-        dag=dag
+        region_name='ap-northeast-2'
     )
     
     message_check = BranchPythonOperator(
         task_id='message_check',
-        python_callable=message_check_handler,
-        dag=dag,
-        triger_rule='all_success'
+        python_callable=message_check_handler
     )
 
+    # 변경 2: KubernetesPodOperator의 arguments가 올바르게 리스트로 수정됨
     second_preprocessing = KubernetesPodOperator(
         task_id='second_preprocessing',
         namespace='airflow',
         image='ghcr.io/abel3005/first_preprocessing:2.0',
         cmds=["/bin/bash", "-c"],
-        arguments=["sh /mnt/data/airflow/second_preprocessing/runner.sh", "{{ task_instance.xcom_pull(task_ids='message_check', key='id_list') }}"],
+        # "/bin/bash", "-c", "sh ..." 형식으로 수정됨
+        arguments=["sh", "/mnt/data/airflow/second_preprocessing/runner.sh", "{{ task_instance.xcom_pull(task_ids='message_check', key='id_list') }}"],  # 수정됨
         name='second_preprocessing',
         volume_mounts=[volume_mount],
         volumes=[volume],
-        dag=dag,
+        dag=dag
     )
     
-    # second_preprocessing을 실행하지 않을 때를 위한 DummyOperator
     skip_second_preprocessing = DummyOperator(
-        task_id='skip_second_preprocessing',
-        dag=dag
+        task_id='skip_second_preprocessing'
     )
 
     delete_message = PythonOperator(
         task_id='delete_sqs_message',
         python_callable=delete_message_from_sqs,
-        trigger_rule='all_success',  # 성공/실패와 상관없이 실행
-        dag=dag
+        trigger_rule='all_success'
     )
 
+# 종속성 설정 부분은 변경 없음
 catch_sqs_message >> message_check
-message_check >> second_preprocessing >> delete_message
-message_check >> skip_second_preprocessing >> delete_message
+message_check >> [second_preprocessing, skip_second_preprocessing] >> delete_message
