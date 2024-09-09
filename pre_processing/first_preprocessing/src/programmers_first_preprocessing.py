@@ -56,7 +56,7 @@ def preprocess_dataframe(tmpdf):
     df['isAppliable'] = df['isAppliable'].apply(lambda x: True if x else False)
     df['site_symbol'] = 'PRO' # site_symbol 추가
     df['crawl_domain'] = 'https://career.programmers.co.kr/' # crawl_domain 추가
-    df['get_date'] = int(pd.to_datetime('today').strftime('%Y%m%d')) # get_date 필드 추가 및 숫자로 변환
+    df['get_date'] = int(pd.to_datetime('today').timestamp()) # get_date 필드 추가 및 숫자로 변환
     df['id'] = df.apply(lambda row: fhash(f"PRO{row['companyname']}{row['jobcode']}"), axis=1) # id 추가
     df.drop(['career','jobType', 'address', 'period', 'minCareerRequired', 'minCareer', 'additionalInformation'], 
             axis=1, inplace=True) # 필요없는 컬럼 삭제
