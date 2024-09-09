@@ -1,4 +1,6 @@
 import logging
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__)))
 import cloudwatch_handler
 
 def log(path, stream_name):
