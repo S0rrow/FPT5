@@ -57,6 +57,7 @@ with DAG(
     default_args=default_args,
     description="activate dag when lambda crawler sended result message.",
     start_date=days_ago(1),
+    schedule_interval='0 17 * * ? *',
     catchup=False,
 ) as dag:
 
@@ -66,6 +67,7 @@ with DAG(
         max_messages=4,
         wait_time_seconds=20,
         poke_interval=10,
+        time_out=3600,
         aws_conn_id='sqs_event_handler_conn',
         region_name='ap-northeast-2',
         dag=dag
