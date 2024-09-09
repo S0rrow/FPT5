@@ -4,7 +4,7 @@ from streamlit_google_auth import Authenticate
 from .utils import Logger
 
 def display_login_page(logger:Logger, authenticator:Authenticate):
-    logger.log(f"rendering login button...",name=__name__)
+    method_name = __name__ + ".display_login_page"
     try:
         st.header("Login with Google Account")
         if st.session_state.get('connected', False):
@@ -24,9 +24,9 @@ def display_login_page(logger:Logger, authenticator:Authenticate):
                         access_type="offline",
                         include_granted_scopes="true",
                 )
-                st.link_button(label="Login with Google :material/login:", url=authorization_url)
-                logger.log(f"state:{state}",name=__name__)
+                login_btn = st.link_button(label="Login with Google :material/login:", url=authorization_url)
+                logger.log(f"action:load, element:login_button", flag=4, name=method_name)
     except Exception as e:
-        logger.log(f"Exception occurred on login page: {e}", flag=1, name=__name__)
+        logger.log(f"Exception occurred on login page: {e}", flag=1, name=method_name)
         
     

@@ -28,6 +28,7 @@ class SearchHistory(BaseModel):
 
 @app.delete("/history")
 def clear_search_history(input:SessionCall):
+    method_name = __name__ + ".clear_search_history"
     # connect to db, and clear search history of session_id
     logger.log(f"clearing search history of session_id: {input.session_id}", name=__name__)
     session_id = input.session_id
@@ -43,13 +44,13 @@ def clear_search_history(input:SessionCall):
         else:
             return {"status": "error", "message": "Failed to clear search history"}
     except Exception as e:
-        logger.log(f"Exception occurred while clearing search history: {e}", flag=1, name=__name__)
+        logger.log(f"Exception occurred while clearing search history: {e}", flag=1, name=method_name)
         return {"status": "error", "message": f"Exception occurred while clearing search history: {e}"}
 
 
 @app.post("/history")
 def save_search_history(input: SearchHistory):
-    logger.log(f"Saving search history of session_id: {input.session_id}", name=__name__)
+    method_name = __name__ + ".save_search_history"
     try:
         # Convert the search_history dict to a JSON string
         search_history_json = json.dumps(input.search_history)
@@ -73,15 +74,12 @@ def save_search_history(input: SearchHistory):
         else:
             return {"status": "error", "message": "Failed to save search history"}
     except Exception as e:
-        logger.log(f"Exception occurred while saving search history: {e}", flag=1, name=__name__)
+        logger.log(f"Exception occurred while saving search history: {e}", flag=1, name=method_name)
         return {"status": "error", "message": f"Exception occurred while saving search history: {str(e)}"}
 
 @app.get("/history")
 async def get_search_history(session_id:str, user_id:str, is_logged_in:bool)->list:
-    if is_logged_in:
-        logger.log(f"Retrieving search history of user_id: {user_id}", name=__name__)
-    else:
-        logger.log(f"Retrieving search history of session_id: {session_id}", name=__name__)
+    method_name = __name__ + ".get_search_history"
     try:
         # Check if session_id exists in db
         if is_logged_in:
@@ -108,10 +106,6 @@ async def get_search_history(session_id:str, user_id:str, is_logged_in:bool)->li
                 logger.log(f"No search history found for session_id: {session_id}", name=__name__)
             return []
         else:
-            if is_logged_in:
-                logger.log(f"Search history retrieved successfully for user_id: {user_id}", name=__name__)
-            else:
-                logger.log(f"Search history retrieved successfully for session_id: {session_id}", name=__name__)
             serialized_df = df.astype(object).to_dict(orient='records')
             return serialized_df
     except Exception as e:
@@ -150,8 +144,6 @@ def get_test_dataframe()->pd.DataFrame:
 
 @app.post("/test")
 def query_test(input:QueryCall):
-    
-    logger.log(f"query called on db [{input.database}] for test: {input.query}", name=__name__)
     try:
         data = get_test_dataframe()
         df = pd.DataFrame(data)
@@ -162,7 +154,6 @@ def query_test(input:QueryCall):
 
 @app.post("/query")
 def query(input:QueryCall):
-    logger.log(f"query called on db [{input.database}]: {input.query}", name=__name__)
     try:
         df = query_to_dataframe(input.database, input.query)
         serialized_df = df.astype(object).to_dict(orient='records')
@@ -177,6 +168,7 @@ def load_config(config_path:str='config.json')->dict:
 
 def create_db_engine(database:str, config):
     """generate db engine through configuration file."""
+    method_name = __name__ + ".create_db_engine"
     try:
         user = config.get("USER")
         password = config.get("PASSWORD")
@@ -185,7 +177,7 @@ def create_db_engine(database:str, config):
         connection_string = f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
         return create_engine(connection_string)
     except Exception as e:
-        logger.log(f"Exception occurred while creating db engine: {e}", flag=1, name=__name__)
+        logger.log(f"Exception occurred while creating db engine: {e}", flag=1, name=method_name)
         raise e
     
 def execute_query(database:str, query:str, params:dict=None, config_path:str='config.json')->bool:
@@ -196,26 +188,25 @@ def execute_query(database:str, query:str, params:dict=None, config_path:str='co
     - params: parameters for the query (optional)
     - config_path: path to config.json
     """
+    method_name = __name__ + ".execute_query"
     try:
         config = load_config(config_path)
         engine = create_db_engine(database, config)
         
         with engine.connect() as connection:
             try:
-                logger.log(f"executing query through sqlalchemy...", name=__name__)
                 if params:
                     connection.execute(text(query), params)
                 else:
                     connection.execute(text(query))
                 connection.commit()
-                logger.log(f"query executed successfully", name=__name__)
 
             except Exception as e:
-                logger.log(f"Exception occurred while executing query: {e}", flag=1, name=__name__)
+                logger.log(f"Exception occurred while executing query: {e}", flag=1, name=method_name)
                 return False
         return True
     except Exception as e:
-        logger.log(f"Exception occurred while executing query: {e}", flag=1, name=__name__)
+        logger.log(f"Exception occurred while executing query: {e}", flag=1, name=method_name)
         return Exception(e)
     
 
@@ -226,18 +217,16 @@ def query_to_dataframe(database:str, query:str, config_path:str='config.json')->
         - query: sql query to execute
         - config_path: path to config.json
     """
+    method_name = __name__ + ".query_to_dataframe"
     try:
         config = load_config(config_path)
         engine = create_db_engine(database, config)
-        
         with engine.connect() as connection:
             try:
-                logger.log(f"retrieving dataframe through sqlalchemy...", name=__name__)
                 df = pd.read_sql(query, connection)
-                logger.log(f"dataframe retrieved successfully", name=__name__)
             except Exception as e:
-                logger.log(f"Exception occurred while connecting: {e}", flag=1, name=__name__)
+                logger.log(f"Exception occurred while connecting: {e}", flag=1, name=method_name)
         return df
     except Exception as e:
-        logger.log(f"Exception occurred while querying: {e}", flag=1, name=__name__)
+        logger.log(f"Exception occurred while querying: {e}", flag=1, name=method_name)
         raise e

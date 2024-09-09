@@ -18,7 +18,7 @@ class Logger():
         self.path = path
         self.options = options
 
-    def log(self, msg:str, flag:int=None, name:str=__name__):
+    def log(self, msg:str, flag:int=None, name:str=None):  # 수정: 기본값을 None으로 변경
         '''
             Save given log messages according to level of depth as files.
             - flag: logs being printed will be saved according to level of depth given in flag
@@ -30,7 +30,7 @@ class Logger():
             - name(optional): name of source logger is running at. if not set, will call __name__ variable of utils.py
         '''
         options = self.options
-        if not name and options.get('name', False):
+        if not name and options.get('name', False):  # 수정: name이 None일 때만 options에서 가져옴
             name = options.get('name')
         if not flag:
             flag = 0
