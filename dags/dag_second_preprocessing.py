@@ -44,7 +44,7 @@ def message_check_handler(**context):
         context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)
         data = message_body.get('records')
         if data:
-            ids = [record['id'] for record in data]
+            ids = ','.join([record['id'] for record in data])
             context['ti'].xcom_push(key='id_list', value=ids)
             return 'second_preprocessing'
         else:
