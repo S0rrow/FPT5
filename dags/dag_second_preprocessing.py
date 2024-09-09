@@ -66,7 +66,7 @@ with DAG(
     default_args=default_args,
     description="Activate DAG when 1st pre-processing DAG ends. This DAG executes with LLM API for pre-processing.",
     start_date=days_ago(1),
-    schedule_interval=None
+    schedule_interval=None,
     catchup=False,
     max_active_runs=1
 ) as dag:
