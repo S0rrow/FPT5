@@ -35,11 +35,12 @@ volume = k8s.V1Volume(
 
 # 메시지 분석 함수
 def analyze_message(**context):
-    messages = context['ti'].xcom_pull(task_ids='wait_for_lambda_message')
+    messages = context['ti'].xcom_pull(task_ids='wait_for_lambda_message', key='messages')
     if messages:
         for message in messages:
             message_body = json.loads(message['Body'])
             if message_body.get('site_symbol') == 'WAN' and message_body.get('status') == 'SUCCESS':
+                context['ti'].xcom_push(key='receipt_handle', value=message['ReceiptHandle'])
                 return True  # 조건을 만족하면 다음 태스크를 실행
     return False  # 조건을 만족하지 않으면 다음 태스크를 실행하지 않음
 
@@ -69,6 +70,7 @@ with DAG(
         wait_time_seconds=20,
         poke_interval=10,
         timeout=3600,
+        delete_message_on_reception=False,
         aws_conn_id='sqs_event_handler_conn',
         region_name='ap-northeast-2',
         dag=dag
