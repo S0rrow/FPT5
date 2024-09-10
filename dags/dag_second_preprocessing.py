@@ -1,6 +1,5 @@
 from datetime import timedelta
-import json
-import boto3
+import json, boto3, logging
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
@@ -36,20 +35,24 @@ volume = k8s.V1Volume(
 
 # 변경 1: BranchPythonOperator에서 task_ids='catch_sqs_message'로 수정
 def message_check_handler(**context):
-    response = context['ti'].xcom_pull(task_ids='catch_sqs_message')  # 수정됨
-    if response:
-        message = response['Messages'][0]
-        message_body = json.loads(message['Body'])
-        receipt_handle = message['ReceiptHandle']
-        context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)
-        data = message_body.get('records')
-        if data:
-            ids = ','.join([record['id'] for record in data])
-            context['ti'].xcom_push(key='id_list', value=ids)
-            return 'second_preprocessing'
+    try:
+        response = context['ti'].xcom_pull(task_ids='catch_sqs_message')  # 수정됨
+        if response:
+            message = response['Messages'][0]
+            message_body = json.loads(message['Body'])
+            receipt_handle = message['ReceiptHandle']
+            context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)
+            records = message_body.get('records')
+            if records:
+                ids = ','.join(map(str, [record['id'] for record in records]))
+                context['ti'].xcom_push(key='id_list', value=ids)
+                return 'second_preprocessing'
+            else:
+                return 'skip_second_preprocessing'
         else:
             return 'skip_second_preprocessing'
-    else:
+    except Exception as e:
+        logging.error(f"Error occured: {str(e)}")
         return 'skip_second_preprocessing'
 
 # 메시지 삭제 시 catch_sqs_message에서 receipt_handle을 가져오도록 수정됨
