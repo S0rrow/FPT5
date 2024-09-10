@@ -94,7 +94,7 @@ with DAG(
         max_messages=1,
         wait_time_seconds=20,
         poke_interval=10,
-        aws_conn_id='sqs_event_handler_conn',
+        aws_conn_id='sqs_ids_handler_conn',
         region_name='ap-northeast-2'
     )
     
