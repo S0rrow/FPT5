@@ -115,7 +115,7 @@ with DAG(
         name='second_preprocessing',
         volume_mounts=[volume_mount],
         volumes=[volume],
-        trigger_rule='all_success'
+        trigger_rule='all_success',
         dag=dag
     )
     
