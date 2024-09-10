@@ -40,17 +40,14 @@ def message_check_handler(**context):
         logging.info(f"reseved sqs msg type: {type(response)}, reseved sqs msg: {response}")
         if response:
             message = response[0]
-            logging.info(f"target msg: {message}")
             message_body = json.loads(message['Body'])
-            logging.info(f"json result: {message_body}")
             receipt_handle = message['ReceiptHandle']
-            logging.info(f"receipt result: {receipt_handle}")
             context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)
             records = message_body.get('records')
             if records:
-                logging.info("start record search")
                 ids = ','.join(map(str, [record['id'] for record in records]))
                 context['ti'].xcom_push(key='id_list', value=ids)
+                logging.info(f"xcom pull data: {ids}")
                 return 'second_preprocessing'
             else:
                 return 'skip_second_preprocessing'
@@ -103,7 +100,8 @@ with DAG(
         image='ghcr.io/abel3005/second_preprocessing:1.0',
         cmds=["/bin/bash", "-c"],
         # "/bin/bash", "-c", "sh ..." 형식으로 수정됨
-        arguments=["sh", "/mnt/data/airflow/second_preprocessing/runner.sh", "{{ task_instance.xcom_pull(task_ids='message_check', key='id_list') }}"],  # 수정됨
+        #arguments=["sh", "/mnt/data/airflow/second_preprocessing/runner.sh", "{{ task_instance.xcom_pull(task_ids='message_check', key='id_list') }}"],
+        arguments=["sh", "/mnt/data/airflow/second_preprocessing/runner.sh"],
         name='second_preprocessing',
         volume_mounts=[volume_mount],
         volumes=[volume],
