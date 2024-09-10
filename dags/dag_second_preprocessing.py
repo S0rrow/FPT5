@@ -37,7 +37,7 @@ volume = k8s.V1Volume(
 def message_check_handler(**context):
     try:
         response = context['ti'].xcom_pull(task_ids='catch_sqs_message', key='messages')
-        logging.info(f"reseved sqs msg: {response}")
+        logging.info(f"reseved sqs msg type: {type(response)}, reseved sqs msg: {response}")
         if response:
             message = response['Messages'][0]
             message_body = json.loads(message['Body'])
