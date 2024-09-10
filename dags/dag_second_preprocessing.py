@@ -100,8 +100,8 @@ with DAG(
         image='ghcr.io/abel3005/second_preprocessing:1.0',
         cmds=["/bin/bash", "-c"],
         # "/bin/bash", "-c", "sh ..." 형식으로 수정됨
-        #arguments=["sh", "/mnt/data/airflow/second_preprocessing/runner.sh", "{{ task_instance.xcom_pull(task_ids='message_check', key='id_list') }}"],
-        arguments=["sh", "/mnt/data/airflow/second_preprocessing/runner.sh"],
+        arguments=["sh", "/mnt/data/airflow/second_preprocessing/runner.sh", "{{ task_instance.xcom_pull(task_ids='message_check', key='id_list') }}"],
+        #arguments=["sh", "/mnt/data/airflow/second_preprocessing/runner.sh"],
         name='second_preprocessing',
         volume_mounts=[volume_mount],
         volumes=[volume],
