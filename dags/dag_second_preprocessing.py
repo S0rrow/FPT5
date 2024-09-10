@@ -98,9 +98,10 @@ with DAG(
         region_name='ap-northeast-2'
     )
     
-    message_check = BranchPythonOperator(
+    message_check = PythonOperator(
         task_id='message_check',
-        python_callable=message_check_handler
+        python_callable=message_check_handler,
+        trigger_rule='all_success'
     )
 
     # 변경 2: KubernetesPodOperator의 arguments가 올바르게 리스트로 수정됨
@@ -114,6 +115,7 @@ with DAG(
         name='second_preprocessing',
         volume_mounts=[volume_mount],
         volumes=[volume],
+        trigger_rule='all_success'
         dag=dag
     )
     
@@ -124,10 +126,10 @@ with DAG(
     delete_message = PythonOperator(
         task_id='delete_sqs_message',
         python_callable=delete_message_from_sqs,
-        trigger_rule='all_success'
+        trigger_rule='all_done'
     )
 
-catch_sqs_message >> message_check
-message_check >> [second_preprocessing, skip_second_preprocessing]
-second_preprocessing >> delete_message
-skip_second_preprocessing >> delete_message
+catch_sqs_message >> message_check >> second_preprocessing >> delete_message
+#message_check >> [second_preprocessing, skip_second_preprocessing]
+#second_preprocessing >> delete_message
+#skip_second_preprocessing >> delete_message
