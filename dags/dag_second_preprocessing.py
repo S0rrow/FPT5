@@ -36,24 +36,38 @@ volume = k8s.V1Volume(
 # 변경 1: BranchPythonOperator에서 task_ids='catch_sqs_message'로 수정
 def message_check_handler(**context):
     try:
-        response = context['ti'].xcom_pull(task_ids='catch_sqs_message')  # 수정됨
-        if response:
+        # SQS 메시지를 XCom에서 가져옴
+        response = context['ti'].xcom_pull(task_ids='catch_sqs_message')
+        
+        # 로그 추가
+        logging.info(f"Received SQS Response: {response}")
+        
+        if response and 'Messages' in response and len(response['Messages']) > 0:
             message = response['Messages'][0]
             message_body = json.loads(message['Body'])
             receipt_handle = message['ReceiptHandle']
+            
+            # Receipt handle 저장
             context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)
+            
+            # 메시지 body에서 'records' 추출
             records = message_body.get('records')
+            logging.info(f"Extracted records: {records}")
+            
             if records:
                 ids = ','.join(map(str, [record['id'] for record in records]))
                 context['ti'].xcom_push(key='id_list', value=ids)
                 return 'second_preprocessing'
             else:
+                logging.info("No records found in message body.")
                 return 'skip_second_preprocessing'
         else:
+            logging.info("No valid messages found.")
             return 'skip_second_preprocessing'
     except Exception as e:
-        logging.error(f"Error occured: {str(e)}")
+        logging.error(f"Error occurred: {str(e)}")
         return 'skip_second_preprocessing'
+
 
 # 메시지 삭제 시 catch_sqs_message에서 receipt_handle을 가져오도록 수정됨
 def delete_message_from_sqs(**context):
