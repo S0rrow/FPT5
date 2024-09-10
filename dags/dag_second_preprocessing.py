@@ -39,7 +39,8 @@ def message_check_handler(**context):
         response = context['ti'].xcom_pull(task_ids='catch_sqs_message', key='messages')
         logging.info(f"reseved sqs msg type: {type(response)}, reseved sqs msg: {response}")
         if response:
-            message = response['Messages'][0]
+            message = response[0]
+            logging.info(f"target msg: {message}")
             message_body = json.loads(message['Body'])
             logging.info(f"json result: {message_body}")
             receipt_handle = message['ReceiptHandle']
