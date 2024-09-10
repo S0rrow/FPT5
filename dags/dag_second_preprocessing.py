@@ -41,10 +41,13 @@ def message_check_handler(**context):
         if response:
             message = response['Messages'][0]
             message_body = json.loads(message['Body'])
+            logging.info(f"json result: {message_body}")
             receipt_handle = message['ReceiptHandle']
+            logging.info(f"receipt result: {receipt_handle}")
             context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)
             records = message_body.get('records')
             if records:
+                logging.info("start record search")
                 ids = ','.join(map(str, [record['id'] for record in records]))
                 context['ti'].xcom_push(key='id_list', value=ids)
                 return 'second_preprocessing'
