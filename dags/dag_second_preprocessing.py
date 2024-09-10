@@ -36,42 +36,30 @@ volume = k8s.V1Volume(
 # 변경 1: BranchPythonOperator에서 task_ids='catch_sqs_message'로 수정
 def message_check_handler(**context):
     try:
-        # SQS 메시지를 XCom에서 가져옴
-        response = context['ti'].xcom_pull(task_ids='catch_sqs_message')
-        
-        # 로그 추가
-        logging.info(f"Received SQS Response: {response}")
-        
-        if response and 'Messages' in response and len(response['Messages']) > 0:
+        response = context['ti'].xcom_pull(task_ids='catch_sqs_message')  # 수정됨
+        logging.info(f"reseved sqs msg: {response}")
+        if response:
             message = response['Messages'][0]
             message_body = json.loads(message['Body'])
             receipt_handle = message['ReceiptHandle']
-            
-            # Receipt handle 저장
             context['ti'].xcom_push(key='receipt_handle', value=receipt_handle)
-            
-            # 메시지 body에서 'records' 추출
             records = message_body.get('records')
-            logging.info(f"Extracted records: {records}")
-            
             if records:
                 ids = ','.join(map(str, [record['id'] for record in records]))
                 context['ti'].xcom_push(key='id_list', value=ids)
                 return 'second_preprocessing'
             else:
-                logging.info("No records found in message body.")
                 return 'skip_second_preprocessing'
         else:
-            logging.info("No valid messages found.")
             return 'skip_second_preprocessing'
     except Exception as e:
-        logging.error(f"Error occurred: {str(e)}")
+        logging.error(f"Error occured: {str(e)}")
         return 'skip_second_preprocessing'
-
 
 # 메시지 삭제 시 catch_sqs_message에서 receipt_handle을 가져오도록 수정됨
 def delete_message_from_sqs(**context):
     receipt_handle = context['ti'].xcom_pull(task_ids='catch_sqs_message', key='receipt_handle')  # 수정됨
+    logging.info(f"loaded data for delete msg: {receipt_handle}")
     if receipt_handle:
         sqs_client.delete_message(
             QueueUrl=queue_url,
@@ -94,14 +82,13 @@ with DAG(
         max_messages=1,
         wait_time_seconds=20,
         poke_interval=10,
-        aws_conn_id='sqs_ids_handler_conn',
+        aws_conn_id='sqs_event_handler_conn',
         region_name='ap-northeast-2'
     )
     
-    message_check = PythonOperator(
+    message_check = BranchPythonOperator(
         task_id='message_check',
-        python_callable=message_check_handler,
-        trigger_rule='all_success'
+        python_callable=message_check_handler
     )
 
     # 변경 2: KubernetesPodOperator의 arguments가 올바르게 리스트로 수정됨
@@ -115,7 +102,6 @@ with DAG(
         name='second_preprocessing',
         volume_mounts=[volume_mount],
         volumes=[volume],
-        trigger_rule='all_success',
         dag=dag
     )
     
@@ -126,10 +112,10 @@ with DAG(
     delete_message = PythonOperator(
         task_id='delete_sqs_message',
         python_callable=delete_message_from_sqs,
-        trigger_rule='all_done'
+        trigger_rule='all_success'
     )
 
-catch_sqs_message >> message_check >> second_preprocessing >> delete_message
-#message_check >> [second_preprocessing, skip_second_preprocessing]
-#second_preprocessing >> delete_message
-#skip_second_preprocessing >> delete_message
+catch_sqs_message >> message_check
+message_check >> [second_preprocessing, skip_second_preprocessing]
+second_preprocessing >> delete_message
+skip_second_preprocessing >> delete_message
