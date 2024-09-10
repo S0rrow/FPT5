@@ -36,7 +36,7 @@ volume = k8s.V1Volume(
 # 변경 1: BranchPythonOperator에서 task_ids='catch_sqs_message'로 수정
 def message_check_handler(**context):
     try:
-        response = context['ti'].xcom_pull(task_ids='catch_sqs_message')  # 수정됨
+        response = context['ti'].xcom_pull(task_ids='catch_sqs_message', key='messages')
         logging.info(f"reseved sqs msg: {response}")
         if response:
             message = response['Messages'][0]
@@ -82,6 +82,7 @@ with DAG(
         max_messages=1,
         wait_time_seconds=20,
         poke_interval=10,
+        delete_message_on_reception=True,
         aws_conn_id='sqs_event_handler_conn',
         region_name='ap-northeast-2'
     )
@@ -117,5 +118,5 @@ with DAG(
 
 catch_sqs_message >> message_check
 message_check >> [second_preprocessing, skip_second_preprocessing]
-second_preprocessing >> delete_message
-skip_second_preprocessing >> delete_message
+second_preprocessing
+skip_second_preprocessing
