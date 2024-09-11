@@ -175,8 +175,9 @@ def main_debug():
         asyncio.run(send_data_async(source_data[i:i+count],_response))
     asyncio.run(send_data_async(source_data[len(source_data)*count:],_response))
     
-def main_debug():
+def main():
     id_list = list(map(int,sys.argv[1].split(',')))
+    logger.info(f"{id_list}")
     logger = log('/aws/preprocessing/second','logs')
     with open("../.KEYS/API_KEYS.json", "r") as f:
         key = json.load(f)
