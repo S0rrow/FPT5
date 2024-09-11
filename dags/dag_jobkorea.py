@@ -38,6 +38,7 @@ def analyze_message(**context):
         for message in messages:
             message_body = json.loads(message['Body'])
             if message_body.get('site_symbol') == 'JK' and message_body.get('status') == 'SUCCESS':
+                context['ti'].xcom_push(key='receipt_handle', value=message['ReceiptHandle'])
                 return True  # 조건을 만족하면 다음 태스크를 실행
     return False  # 조건을 만족하지 않으면 다음 태스크를 실행하지 않음
 
@@ -58,6 +59,8 @@ with DAG(
     default_args=default_args,
     description="activate dag when lambda crawler sended result message.",
     start_date=days_ago(1),
+    schedule_interval='0 17 * * * *',
+    max_active_runs=1,
     catchup=False,
 ) as dag:
 
@@ -67,6 +70,8 @@ with DAG(
         max_messages=4,
         wait_time_seconds=20,
         poke_interval=10,
+        delete_message_on_reception=False,
+        timeout=3600,
         aws_conn_id='sqs_event_handler_conn',
         region_name='ap-northeast-2',
     )
@@ -101,7 +106,7 @@ with DAG(
     trigger_2nd_preprocessing = TriggerDagRunOperator(
         task_id='trigger_second_preprocessing',
         trigger_dag_id='second_preprocessing',   # 실행할 second_preprocessing DAG의 DAG ID
-        conf={"records": "{{ task_instance.xcom_pull(task_ids='first_preprocessing_jobkorea') }}"},  # XCom 출력값 전달
+        #conf={"records": "{{ task_instance.xcom_pull(task_ids='first_preprocessing_jobkorea') }}"},  # XCom 출력값 전달
         wait_for_completion=False,  # True로 설정하면 second_preprocessing DAG가 완료될 때까지 현재 DAG 대기
         trigger_rule='all_success',
     )
