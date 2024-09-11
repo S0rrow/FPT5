@@ -105,12 +105,12 @@ def remove_duplicate_id(s3_client, buket_name, _df):
         return df_id_list
 
 # redis에서 id가 존재하는지 체크 후 없는 것들에 대해서 record 반환
-def check_id_in_redis(logger, redis_sassion, records):
+def check_id_in_redis(logger, redis_session, records):
     inited_id_records = []
     for record in records:
         _id = record.get('id')
         _get_date = record.get('get_date')
-        if not redis_sassion.hexists('compare_id', _id):  # Redis hash에 해당 id가 없으면
+        if not redis_session.hexists('compare_id', _id):  # Redis hash에 해당 id가 없으면
             inited_id_records.append({"id": _id, "get_date": _get_date})
             logger.info(f"id {_id} is not exist in redis. Added upload list.")
         else:
@@ -120,12 +120,12 @@ def check_id_in_redis(logger, redis_sassion, records):
     return inited_id_records
 
 # record에서 없는 id만 redis로 push
-def upload_id_into_redis(logger, redis_sassion, records):
+def upload_id_into_redis(logger, redis_session, records):
     for record in records:
         _id = record.get('id')
         _get_date = record.get('get_date')
-        if not redis_sassion.hexists('compare_id', _id):  # Redis hash에 해당 id가 없으면
-            redis_sassion.hset('compare_id', _id, _get_date)  # 해당 id를 해시에 저장
+        if not redis_session.hexists('compare_id', _id):  # Redis hash에 해당 id가 없으면
+            redis_session.hset('compare_id', _id, _get_date)  # 해당 id를 해시에 저장
             logger.info(f"id {_id} init into redis.")
         else:
             logger.info(f"id {_id} already exist in redis. set id action dismissed")
