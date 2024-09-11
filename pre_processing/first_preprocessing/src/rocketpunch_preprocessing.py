@@ -124,6 +124,8 @@ def preprocessing(df):
             processing_dict['site_symbol'] = "RP"
             processing_dict['crawl_url'] = data['job_url']
             processing_dict['crawl_domain'] = data['crawl_domain']
+            processing_dict['job_title'] = data['job_title']
+            processing_dict['company_name'] = data['company_name']
 
             id = farmhash.Fingerprint32("RP" + data['company_name'] + str(data['job_id']))
             processing_dict['id'] = id
