@@ -9,9 +9,21 @@ from boto3.dynamodb.conditions import Key, Attr
 from datetime import datetime
 from logging_utils.logging_to_cloudwatch import log
 import sys
-
-async def send_data_async(logger,source_data,prompt_metadata,_response):
+id_list = list(map(int,sys.argv[1].split(',')))
+logger = log('/aws/preprocessing/second','logs')
+with open("./.KEYS/SECOND_PREPROCESSING_KEY.json", "r") as f:
+    key = json.load(f)
+# S3 버킷 정보 get
+with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
+    bucket_info = json.load(f)
+with open("./.KEYS/GEMINI_API_KEY.json", "r") as f:
+    gemini_api_key = json.load(f)
+with open("./.DATA/PROMPT_INFO.json") as f:
+    prompt_metadata = json.load(f)
+    
+async def send_data_async(logger,chat_session,source_data,_response):
     prompt_data = prompt_metadata.get("data", {})
+    task = []
     try:
         for idx, _obj in enumerate(source_data):
             _symbol = _obj.get('site_symbol', "").upper()
@@ -21,22 +33,26 @@ async def send_data_async(logger,source_data,prompt_metadata,_response):
                     data_source_keys=_data_source_keys, 
                     input_data=str(_obj)
                 )
-            task = asyncio.create_task(chat_session.send_message_async(_prompt))
+            task.append(asyncio.create_task(chat_session.send_message_async(_prompt)))
         logger.debug(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         await asyncio.sleep(60)
         for idx in range(len(source_data)):
-            _response[idx] = await task
+            _response[idx] = await task[idx]
         logger.debug(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         try:
-            for idx in range(len(source_data)):
+            for idx, _obj in enumerate(source_data):
                 json_data = _response[idx].text.replace("```json\n", "").replace("\n```", "")
                 dict_data = json.loads(json_data)
                 data_item = return_concat_data_record(obj=_obj, data_dict=dict_data)
+                print(data_item)
                 upload_data(data_item)
         except Exception as e:
             logger.error(str(e))
+            print(f"error : {e}")
     except Exception as e:
         logger.error(str(e))
+        print(f"error : {e}")
+        
 
 
 
@@ -114,7 +130,7 @@ def upload_data(_item):
 
 def main_debug():
     logger = log('/aws/preprocessing/second','logs')
-    with open("../.KEYS/API_KEYS.json", "r") as f:
+    with open("../.KEYS/SECOND_PREPROCESSING_KEY.json", "r") as f:
         key = json.load(f)
     # S3 버킷 정보 get
     with open("../.KEYS/DATA_SRC_INFO.json", "r") as f:
@@ -176,23 +192,7 @@ def main_debug():
     asyncio.run(send_data_async(source_data[len(source_data)*count:],_response))
     
 def main():
-    id_list = list(map(int,sys.argv[1].split(',')))
-    logger.info(f"{id_list}")
-    logger = log('/aws/preprocessing/second','logs')
-    with open("../.KEYS/API_KEYS.json", "r") as f:
-        key = json.load(f)
-    # S3 버킷 정보 get
-    with open("../.KEYS/DATA_SRC_INFO.json", "r") as f:
-        bucket_info = json.load(f)
-
-    with open("../.KEYS/GEMINI_API_KEY.json", "r") as f:
-        gemini_api_key = json.load(f)
-
-    with open("../.DATA/PROMPT_INFO.json") as f:
-        prompt_metadata = json.load(f)
-
     dynamo_table_name = bucket_info['restore_table_name']
-
     dynamodb = boto3.resource(
             'dynamodb',
             aws_access_key_id=key['aws_access_key_id'],
@@ -200,11 +200,11 @@ def main():
             region_name=key['region']
         )
     table = dynamodb.Table(dynamo_table_name)
-    source_data = []
+    source_data = []    
     for i in id_list:
-        source_data.append(table.query(Select='ALL_ATTRIBUTES',KeyConditionExpression=Key("id").eq(i)))
+        source_data.append(table.query(Select='ALL_ATTRIBUTES',KeyConditionExpression=Key("id").eq(i))["Items"][0])
     genai.configure(api_key=gemini_api_key['GEMINI_API'])
-
+    
     # Create the model
     generation_config = {
         "temperature": 0.7,
@@ -232,8 +232,8 @@ def main():
         _response = [None for _ in range(count)]
         for i in range(len(source_data) // count):
             # 비동기 코드 실행
-            asyncio.run(send_data_async(logger,source_data[i:i+count],prompt_metadata,_response))
-        asyncio.run(send_data_async(logger,source_data[len(source_data)*count:],prompt_metadata,_response))
+            asyncio.run(send_data_async(logger,chat_session,source_data[i:i+count],_response))
+        asyncio.run(send_data_async(logger,chat_session,source_data[-(len(source_data)%count):],_response))
     except Exception as e:
         logger.error(f'{_response} : {e}')
     
