@@ -42,33 +42,33 @@ def tagid_to_tagname(tags, job_table):
     """
     return ', '.join(job_table[job_table['id'].isin(tags)]['name'].tolist())
 
-# def preprocess_dataframe(tmpdf):
-#     df = tmpdf.copy()
-#     df['description'] = df['description'].apply(lambda x: replace_strings(x)) # description 전처리
-#     df['requirement'] = df['requirement'].apply(lambda x: replace_strings(x)) # requirement 전처리
-#     df['preferredExperience'] = df['preferredExperience'].apply(lambda x: replace_strings(x)) # preferredExperience 전처리
-#     df['jobCategoryIds'] = df['jobCategoryIds'].apply(lambda x: tagid_to_tagname(x, job_category_table)) # jobCategoryIds 전처리
-#     df['updatedAt'] = pd.to_datetime(df['updatedAt']).dt.strftime('%Y-%m-%d') # 날짤 형식 전처리
-#     df['endAt'] = df['endAt'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d') if pd.notnull(x) else None)
-#     # df['endAt'] = df['endAt'].apply(lambda x: pd.to_datetime(x).date() if pd.notnull(x) else x)
-#     df['careerRange'] = df['careerRange'].apply(lambda x: False if pd.isnull(x) else True) # boolean 형식 전처리
-#     df['resumeRequired'] = df['resumeRequired'].apply(lambda x: True if x else False)
-#     df['isAppliable'] = df['isAppliable'].apply(lambda x: True if x else False)
-#     df['site_symbol'] = 'PRO' # site_symbol 추가
-#     df['crawl_domain'] = 'https://career.programmers.co.kr/' # crawl_domain 추가
-#     df['get_date'] = int(pd.to_datetime('today').strftime('%Y%m%d')) # get_date 필드 추가 및 숫자로 변환
-#     df['id'] = df.apply(lambda row: fhash(f"PRO{row['companyname']}{row['jobcode']}"), axis=1) # id 추가
-#     df.drop(['career','jobType', 'address', 'period', 'minCareerRequired', 'minCareer', 'additionalInformation'], 
-#             axis=1, inplace=True) # 필요없는 컬럼 삭제
-#     # 컬럼명 변경
-#     df.rename(columns={'title':'job_title', 'jobcode':'job_id', 'companyId': 'company_id', 
-#                        'companyname': 'company_name', 'description':'job_tasks', 
-#                        'technicalTags':'stacks', 'requirement':'job_requirements', 
-#                        'preferredExperience':'job_prefer','jobCategoryIds':'job_category', 
-#                        'updatedAt':'start_date', 'endAt':'end_date', 'careerRange':'required_career', 
-#                        'resumeRequired':'resume_required', 'isAppliable':'post_status',
-#                        'page_url':'crawl_url'}, inplace=True)
-#     return df
+def preprocess_dataframe(tmpdf):
+    df = tmpdf.copy()
+    df['description'] = df['description'].apply(lambda x: replace_strings(x)) # description 전처리
+    df['requirement'] = df['requirement'].apply(lambda x: replace_strings(x)) # requirement 전처리
+    df['preferredExperience'] = df['preferredExperience'].apply(lambda x: replace_strings(x)) # preferredExperience 전처리
+    df['jobCategoryIds'] = df['jobCategoryIds'].apply(lambda x: tagid_to_tagname(x, job_category_table)) # jobCategoryIds 전처리
+    df['updatedAt'] = pd.to_datetime(df['updatedAt']).dt.strftime('%Y-%m-%d') # 날짤 형식 전처리
+    df['endAt'] = df['endAt'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d') if pd.notnull(x) else None)
+    # df['endAt'] = df['endAt'].apply(lambda x: pd.to_datetime(x).date() if pd.notnull(x) else x)
+    df['careerRange'] = df['careerRange'].apply(lambda x: False if pd.isnull(x) else True) # boolean 형식 전처리
+    df['resumeRequired'] = df['resumeRequired'].apply(lambda x: True if x else False)
+    df['isAppliable'] = df['isAppliable'].apply(lambda x: True if x else False)
+    df['site_symbol'] = 'PRO' # site_symbol 추가
+    df['crawl_domain'] = 'https://career.programmers.co.kr/' # crawl_domain 추가
+    df['get_date'] = int(pd.to_datetime('today').timestamp()) # get_date 필드 추가 및 숫자로 변환
+    df['id'] = df.apply(lambda row: fhash(f"PRO{row['companyname']}{row['jobcode']}"), axis=1) # id 추가
+    df.drop(['career','jobType', 'address', 'period', 'minCareerRequired', 'minCareer', 'additionalInformation'], 
+            axis=1, inplace=True) # 필요없는 컬럼 삭제
+    # 컬럼명 변경
+    df.rename(columns={'title':'job_title', 'jobcode':'job_id', 'companyId': 'company_id', 
+                       'companyname': 'company_name', 'description':'job_tasks', 
+                       'technicalTags':'stacks', 'requirement':'job_requirements', 
+                       'preferredExperience':'job_prefer','jobCategoryIds':'job_category', 
+                       'updatedAt':'start_date', 'endAt':'end_date', 'careerRange':'required_career', 
+                       'resumeRequired':'resume_required', 'isAppliable':'post_status',
+                       'page_url':'crawl_url'}, inplace=True)
+    return df
 
 def upload_data(records, key, push_table_name):
     # DynamoDB 클라이언트 생성
@@ -211,6 +211,7 @@ def main():
     pull_bucket_name = storage_info['pull_bucket_name']
     push_table_name = storage_info['restore_table_name']
     data_archive_bucket_name = storage_info['crawl_data_bucket_name']
+    target_id_queue_url = storage_info['target_id_sqs_queque_arn']
     #id_list_bucket_name = storage_info['id_storage_bucket_name']
     redis_ip = storage_info['redis_conn_info']['ip']
     redis_port = storage_info['redis_conn_info']['port']
@@ -242,8 +243,9 @@ def main():
             if len(filtered_df): # 처리 완료시 dynamoDB에 적제
                 upload_data(filtered_df.to_dict(orient='records'),aws_key,push_table_name)
                 #update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
-                utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)       
-                print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
+                utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)
+                utils.send_msg_to_sqs(logger, session, target_id_queue_url, "PRO", upload_ids_records)     
+                #print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
                 
         except Exception as e:
             logger.error(f"'{obj['Key']}' went wrong: {e}")
