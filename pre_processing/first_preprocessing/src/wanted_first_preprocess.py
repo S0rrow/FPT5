@@ -16,14 +16,14 @@ with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
     storage_info = json.load(f)
     
 # S3 섹션 및 client 생성
-session = boto3.Session(
-    aws_access_key_id=aws_key['aws_access_key_id'],
-    aws_secret_access_key=aws_key['aws_secret_key'],
-    region_name=aws_key['region']
-)
+# session = boto3.Session(
+#     aws_access_key_id=aws_key['aws_access_key_id'],
+#     aws_secret_access_key=aws_key['aws_secret_key'],
+#     region_name=aws_key['region']
+# )
 
 # S3 버킷 정보 init
-s3 = session.client('s3')
+#s3 = session.client('s3')
 pull_bucket_name = storage_info['pull_bucket_name']
 push_table_name = storage_info['restore_table_name']
 data_archive_bucket_name = storage_info['crawl_data_bucket_name']
@@ -72,6 +72,8 @@ def upload_data(records):
 def main():
     logger.info("Start wanted first pre-processing code")
     new_columns = ['job_title', 'job_tasks', 'job_requirements', 'job_prefer', 'end_date', 'job_id', 'company_id', 'company_name', 'crawl_domain', 'get_date', 'id', 'site_symbol', 'crawl_url']
+    session = utils.return_aws_session(aws_key['aws_access_key_id'], aws_key['aws_secret_key'], aws_key['region'])
+    s3 = session.client('s3')
     metadata_list = utils.get_bucket_metadata(s3, pull_bucket_name,target_folder_prefix)
     if metadata_list:
         for obj in metadata_list[1:]:

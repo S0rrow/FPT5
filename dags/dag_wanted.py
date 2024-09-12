@@ -1,13 +1,15 @@
 from airflow import DAG
 from airflow.utils.dates import days_ago
 from airflow.models import Variable
+from airflow.hooks.base_hook import BaseHook
+from airflow.providers.amazon.aws.hooks.sqs import SqsHook
 from airflow.providers.amazon.aws.sensors.sqs import SqsSensor
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from kubernetes.client import models as k8s
 from datetime import timedelta
-import json, boto3
+import json
 
 default_args = {
     'owner': 'airflow',
@@ -18,7 +20,6 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-sqs_client = boto3.client('sqs', region_name='ap-northeast-2')
 queue_url = Variable.get('sqs_queue_url')
 
 volume_mount = k8s.V1VolumeMount(
@@ -46,6 +47,9 @@ def analyze_message(**context):
 
 # 메시지 삭제 함수
 def delete_message_from_sqs(**context):
+    aws_conn_id = 'sqs_event_handler_conn'
+    sqs_hook = SqsHook(aws_conn_id=aws_conn_id)
+    sqs_client = sqs_hook.get_conn()
     receipt_handle = context['ti'].xcom_pull(task_ids='analyze_message', key='receipt_handle')
     if receipt_handle:
         sqs_client.delete_message(
