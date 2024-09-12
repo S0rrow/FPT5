@@ -9,7 +9,7 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from kubernetes.client import models as k8s
 from datetime import timedelta
-import json
+import json, logging
 
 default_args = {
     'owner': 'airflow',
@@ -38,6 +38,7 @@ volume = k8s.V1Volume(
 # 메시지 분석 함수
 def analyze_message(**context):
     messages = context['ti'].xcom_pull(task_ids='wait_for_lambda_message')
+    logging.info(f"reseved msgs: {messages}")
     if messages:
         for message in messages:
             message_body = json.loads(message['Body'])
