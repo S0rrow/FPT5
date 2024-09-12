@@ -77,15 +77,15 @@ with DAG(
         timeout=3600,
         delete_message_on_reception=False,
         aws_conn_id='sqs_event_handler_conn',
-        region_name='ap-northeast-2',
-        dag=dag
+        region_name=aws_region,
+        dag=dag,
     )
     
     start_analyze_message = PythonOperator(
         task_id='analyze_message',
         python_callable=analyze_message,
         provide_context=True,
-        dag=dag
+        dag=dag,
     )
 
     first_preprocessing = KubernetesPodOperator(
@@ -98,7 +98,7 @@ with DAG(
         volume_mounts=[volume_mount],
         volumes=[volume],
         trigger_rule='all_success',  # 이전 작업이 성공하면 실행
-        dag=dag
+        dag=dag,
     )
 
     delete_message = PythonOperator(
@@ -106,7 +106,7 @@ with DAG(
         python_callable=delete_message_from_sqs,
         provide_context=True,
         trigger_rule='all_success',  # first_preprocessing이 성공했을 때만 실행
-        dag=dag
+        dag=dag,
     )
      
     trigger_2nd_preprocessing = TriggerDagRunOperator(
@@ -115,7 +115,7 @@ with DAG(
         #conf={"records": "{{ task_instance.xcom_pull(task_ids='first_preprocessing_wanted') }}"},  # XCom 출력값 전달
         wait_for_completion=False,  # True로 설정하면 second_preprocessing DAG가 완료될 때까지 현재 DAG 대기
         trigger_rule='all_success',
-        dag=dag
+        dag=dag,
     )
     
     wait_for_message >> start_analyze_message >> first_preprocessing >> delete_message >> trigger_2nd_preprocessing

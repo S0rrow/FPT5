@@ -1,12 +1,15 @@
 from airflow import DAG
+from airflow.utils.dates import days_ago
+from airflow.models import Variable
+from airflow.hooks.base_hook import BaseHook
+from airflow.providers.amazon.aws.hooks.sqs import SqsHook
 from airflow.providers.amazon.aws.sensors.sqs import SqsSensor
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from kubernetes.client import models as k8s
-from airflow.utils.dates import days_ago
 from datetime import timedelta
-import json, boto3
+import json
 
 default_args = {
     'owner': 'airflow',
@@ -17,7 +20,8 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-sqs_client = boto3.client('sqs', region_name='ap-northeast-2')
+queue_url = Variable.get('sqs_queue_url')
+aws_region = Variable.get('aws_region')
 
 volume_mount = k8s.V1VolumeMount(
     name="airflow-worker-pvc",
@@ -44,15 +48,15 @@ def analyze_message(**context):
 
 # 메시지 삭제 함수
 def delete_message_from_sqs(**context):
+    aws_conn_id = 'sqs_event_handler_conn'
+    sqs_hook = SqsHook(aws_conn_id=aws_conn_id, region_name=aws_region)
+    sqs_client = sqs_hook.get_conn()
     receipt_handle = context['ti'].xcom_pull(task_ids='analyze_message', key='receipt_handle')
     if receipt_handle:
         sqs_client.delete_message(
-            QueueUrl='https://sqs.ap-northeast-2.amazonaws.com/533267279103/first-preprocessing-message-queue',
+            QueueUrl=queue_url,
             ReceiptHandle=receipt_handle
         )
-        #print(f"Message with ReceiptHandle {receipt_handle} deleted successfully.")
-    # else:
-    #     print("No ReceiptHandle found, skipping message deletion.")
 
 with DAG(
     dag_id='programmers_first_preprocessing',
@@ -73,13 +77,15 @@ with DAG(
         delete_message_on_reception=False,
         timeout=3600,
         aws_conn_id='sqs_event_handler_conn',
-        region_name='ap-northeast-2',
+        region_name=aws_region,
+        dag=dag
     )
     
     start_analyze_message = PythonOperator(
         task_id='analyze_message',
         python_callable=analyze_message,
         provide_context=True,
+        dag=dag,
     )
     
     first_preprocessing = KubernetesPodOperator(
@@ -91,9 +97,9 @@ with DAG(
         name='first_preprocessing_programmers',
         volume_mounts=[volume_mount],
         volumes=[volume],
-        dag=dag,
         do_xcom_push=True,
         trigger_rule='all_success',  # 이전 작업이 성공하면 실행
+        dag=dag,
     )
     
     delete_message = PythonOperator(
@@ -101,6 +107,7 @@ with DAG(
         python_callable=delete_message_from_sqs,
         provide_context=True,
         trigger_rule='all_success',  # first_preprocessing이 성공했을 때만 실행
+        dag=dag,
     )
     
     trigger_2nd_preprocessing = TriggerDagRunOperator(
@@ -109,6 +116,7 @@ with DAG(
         #conf={"records": "{{ task_instance.xcom_pull(task_ids='first_preprocessing_programmers') }}"},  # XCom 출력값 전달
         wait_for_completion=False,  # True로 설정하면 second_preprocessing DAG가 완료될 때까지 현재 DAG 대기
         trigger_rule='all_success',
+        dag=dag,
     )
     
     wait_for_message >> start_analyze_message >> first_preprocessing >> delete_message >> trigger_2nd_preprocessing
