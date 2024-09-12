@@ -1,4 +1,4 @@
-import re, datetime, pytz, subprocess, os, json
+import re, datetime, pytz, subprocess, os, json, boto3
 from botocore.exceptions import ClientError
 from time import gmtime, strftime
 
@@ -14,6 +14,15 @@ def log(msg, flag=None, path="./logs"):
     if not os.path.isfile(f"{path}/{head[flag]}.log"):
         assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" > {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
     else: assert subprocess.call(f"echo \"[{now}][{head[flag]}] > {msg}\" >> {path}/{head[flag]}.log", shell=True)==0, print(f"[ERROR] > shell command failed to execute")
+
+def return_aws_session(aws_key, aws_secret_key, region):
+    session = boto3.Session(
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret_key,
+        region_name=region
+    )
+    
+    return session
 
 # s3 client를 통해 해당 path의 file 목록 가져오기
 def get_bucket_metadata(s3_client, pull_bucket_name, target_folder_prefix):

@@ -1,6 +1,6 @@
 # 전체 코드
 from farmhash import FarmHash32 as fhash
-import json, boto3, pytz, requests, re, os, sys, redis
+import json, boto3, requests, re, os, sys, redis
 import pandas as pd
 import logging_to_cloudwatch as ltc
 import utils
@@ -173,12 +173,7 @@ def main():
         storage_info = json.load(f)
         
     # S3 섹션 및 client 생성
-    session = boto3.Session(
-        aws_access_key_id=aws_key['aws_access_key_id'],
-        aws_secret_access_key=aws_key['aws_secret_key'],
-        region_name=aws_key['region']
-    )
-
+    session = utils.return_aws_session(aws_key['aws_access_key_id'], aws_key['aws_secret_key'], aws_key['region'])
     # S3 버킷 정보 init
     s3 = session.client('s3')
     pull_bucket_name = storage_info['pull_bucket_name']
@@ -217,6 +212,7 @@ def main():
                 upload_data(filtered_df.to_dict(orient='records'),aws_key,push_table_name)
                 #update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
                 utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)
+                session = utils.return_aws_session(key['aws_access_key_id'], key['aws_secret_key'], key['region'])
                 utils.send_msg_to_sqs(logger, session, target_id_queue_url, "PRO", upload_ids_records)     
                 #print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
                 

@@ -45,11 +45,7 @@ def main():
         storage_info = json.load(f)
         
     # S3 섹션 및 client 생성
-    session = boto3.Session(
-        aws_access_key_id=aws_key['aws_access_key_id'],
-        aws_secret_access_key=aws_key['aws_secret_key'],
-        region_name=aws_key['region']
-    )
+    session = utils.return_aws_session(aws_key['aws_access_key_id'], aws_key['aws_secret_key'], aws_key['region'])
     s3 = session.client('s3')
 
     # S3 버킷 정보 init
@@ -88,14 +84,15 @@ def main():
             upload_ids_records = utils.check_id_in_redis(logger, redis_sassion, unique_df.to_dict(orient='records'))
             filtered_df = unique_df[unique_df['id'].isin([record['id'] for record in upload_ids_records])]
             if len(filtered_df):
-                upload_data(logger,filtered_df,aws_key,push_table_name)
+                upload_data(logger,filtered_df.to_dict('records'),aws_key,push_table_name)
                 utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)
+                session = utils.return_aws_session(aws_key['aws_access_key_id'], aws_key['aws_secret_key'], aws_key['region'])
                 utils.send_msg_to_sqs(logger, session, target_id_queue_url, "JK", upload_ids_records)
                 #print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
                 #update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
         except Exception as e:
             s3.copy({"Bucket":data_archive_bucket_name,"Key":obj["Key"]},pull_bucket_name,obj["Key"])
-            logger.error(f"{obj['Key']} upload error")
+            logger.error(f"{obj['Key']} upload error {e}")
             #s3.delete_object(Bucket=dump_bucket_name,Key=obj["Key"])
         else:
             logger.info(f"{obj['Key']} upload complete")
