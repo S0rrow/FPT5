@@ -1,6 +1,6 @@
 # 전체 코드
 from farmhash import FarmHash32 as fhash
-import json, boto3, pytz, requests, re, os, sys, redis
+import json, boto3, requests, re, os, sys, redis
 import pandas as pd
 import logging_to_cloudwatch as ltc
 import utils
@@ -173,12 +173,7 @@ def main():
         storage_info = json.load(f)
         
     # S3 섹션 및 client 생성
-    session = boto3.Session(
-        aws_access_key_id=aws_key['aws_access_key_id'],
-        aws_secret_access_key=aws_key['aws_secret_key'],
-        region_name=aws_key['region']
-    )
-
+    session = utils.return_aws_session(aws_key['aws_access_key_id'], aws_key['aws_secret_key'], aws_key['region'])
     # S3 버킷 정보 init
     s3 = session.client('s3')
     pull_bucket_name = storage_info['pull_bucket_name']

@@ -22,11 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 # S3 세션 전역 변수로 선언
-session = boto3.Session(
-    aws_access_key_id=key['aws_access_key_id'],
-    aws_secret_access_key=key['aws_secret_key'],
-    region_name=key['region']
-)
+session = utils.return_aws_session(key['aws_access_key_id'], key['aws_secret_key'], key['region'])
 s3 = session.client('s3')
 
 # redis 연결 작업
