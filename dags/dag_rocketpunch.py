@@ -37,7 +37,7 @@ volume = k8s.V1Volume(
 
 # 메시지 분석 함수
 def analyze_message(**context):
-    messages = context['ti'].xcom_pull(task_ids='wait_for_lambda_message')
+    messages = context['ti'].xcom_pull(task_ids='wait_for_lambda_message', key='messages')
     if messages:
         for message in messages:
             message_body = json.loads(message['Body'])

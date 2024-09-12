@@ -212,6 +212,7 @@ def main():
                 upload_data(filtered_df.to_dict(orient='records'),aws_key,push_table_name)
                 #update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
                 utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)
+                session = utils.return_aws_session(key['aws_access_key_id'], key['aws_secret_key'], key['region'])
                 utils.send_msg_to_sqs(logger, session, target_id_queue_url, "PRO", upload_ids_records)     
                 #print(json.dumps(upload_ids_records)) # Airflow DAG Xcom으로 값 전달하기 위해 stdout 출력 
                 
