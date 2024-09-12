@@ -70,7 +70,7 @@ with DAG(
 
     wait_for_message = SqsSensor(
         task_id='wait_for_lambda_message',
-        sqs_queue='https://sqs.ap-northeast-2.amazonaws.com/533267279103/first-preprocessing-message-queue',
+        sqs_queue=queue_url,
         max_messages=10,
         wait_time_seconds=20,
         poke_interval=10,
@@ -97,7 +97,6 @@ with DAG(
         name='first_preprocessing_jobkorea',
         volume_mounts=[volume_mount],
         volumes=[volume],
-        do_xcom_push=True,
         trigger_rule='all_success',  # 이전 작업이 성공하면 실행
         dag=dag,
     )
