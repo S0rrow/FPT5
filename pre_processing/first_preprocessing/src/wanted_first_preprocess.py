@@ -8,11 +8,11 @@ import utils
 
 
 # S3 client 생성에 필요한 보안 자격 증명 정보 get
-with open("./.KEYS/FIRST_PREPROCESSING_KEY.json", "r") as f:
+with open("../.KEYS/FIRST_PREPROCESSING_KEY.json", "r") as f:
     aws_key = json.load(f)
 
 # S3 버킷 정보 get
-with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
+with open("../.KEYS/DATA_SRC_INFO.json", "r") as f:
     storage_info = json.load(f)
     
 # S3 섹션 및 client 생성
@@ -94,7 +94,8 @@ def main():
                 filtered_df = unique_df[unique_df['id'].isin([record['id'] for record in upload_ids_records])]
                 upload_data(filtered_df.to_dict(orient='records'))
                 utils.upload_id_into_redis(logger, redis_sassion, upload_ids_records)
-                utils.send_msg_to_sqs(logger, session, target_id_queue_url, "WAN", upload_ids_records)
+                sqs_session = utils.return_aws_session(aws_key['aws_access_key_id'], aws_key['aws_secret_key'], aws_key['region'])
+                utils.send_msg_to_sqs(logger, sqs_session, target_id_queue_url, "WAN", upload_ids_records)
                 #update_respone = utils.update_ids_to_s3(s3, id_list_bucket_name, "obj_ids.json", upload_record_ids)
             except json.JSONDecodeError as e:
                 logger.error(f"JSONDecodeError encountered: {e}")

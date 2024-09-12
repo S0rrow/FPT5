@@ -21,6 +21,7 @@ default_args = {
 }
 
 queue_url = Variable.get('sqs_queue_url')
+aws_region = Variable.get('aws_region')
 
 volume_mount = k8s.V1VolumeMount(
     name="airflow-worker-pvc",
@@ -48,7 +49,7 @@ def analyze_message(**context):
 # 메시지 삭제 함수
 def delete_message_from_sqs(**context):
     aws_conn_id = 'sqs_event_handler_conn'
-    sqs_hook = SqsHook(aws_conn_id=aws_conn_id)
+    sqs_hook = SqsHook(aws_conn_id=aws_conn_id, region_name=aws_region)
     sqs_client = sqs_hook.get_conn()
     receipt_handle = context['ti'].xcom_pull(task_ids='analyze_message', key='receipt_handle')
     if receipt_handle:
