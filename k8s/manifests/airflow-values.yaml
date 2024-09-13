@@ -25,6 +25,14 @@ scheduler:
     failureThreshold: 20
     periodSeconds: 60
   replicas: 2
+## add resource part
+  resources:
+    requests:
+      memory: "2Gi"  
+      cpu: "500m"    
+    limits:
+      memory: "4Gi"  
+      cpu: "1"       
 
 webserver:
   service:
@@ -42,6 +50,14 @@ logs:
 
 workers:
   replicas: 3
+## add resource parts
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "500m"  
+    limits:
+      memory: "8Gi"
+      cpu: "2"
 
 postgresql:
   enabled: true
