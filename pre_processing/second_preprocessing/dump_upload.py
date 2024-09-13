@@ -9,7 +9,6 @@ from boto3.dynamodb.conditions import Key, Attr
 from datetime import datetime
 from logging_utils.logging_to_cloudwatch import log
 import sys
-id_list = list(map(int,sys.argv[1].split(',')))
 logger = log('/aws/preprocessing/second','logs')
 with open("./.KEYS/SECOND_PREPROCESSING_KEY.json", "r") as f:
     key = json.load(f)
@@ -47,8 +46,10 @@ async def send_data_async(logger,chat_session,source_data,_response):
                 upload_data(data_item)
         except Exception as e:
             logger.error(str(e))
+            print(f"error : {e}")
     except Exception as e:
         logger.error(str(e))
+        print(f"error : {e}")
         
 
 
@@ -189,6 +190,7 @@ def main_debug():
     asyncio.run(send_data_async(source_data[len(source_data)*count:],_response))
     
 async def main():
+    
     dynamo_table_name = bucket_info['restore_table_name']
     dynamodb = boto3.resource(
             'dynamodb',
@@ -196,10 +198,14 @@ async def main():
             aws_secret_access_key=key['aws_secret_key'],
             region_name=key['region']
         )
+    source_table = dynamodb.Table('merged-data-table')
+    response = source_table.scan()
+    source_data = [ item for item in response.get('Items', [])]
+    while 'LastEvaluatedKey' in response:
+        response = source_table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
+        source_data = source_data + [item for item in response.get('Items', [])]  # 다음 페이지의 id 추가
+    
     table = dynamodb.Table(dynamo_table_name)
-    source_data = []    
-    for i in id_list:
-        source_data.append(table.query(Select='ALL_ATTRIBUTES',KeyConditionExpression=Key("id").eq(i))["Items"][0])
     genai.configure(api_key=gemini_api_key['GEMINI_API'])
     
     # Create the model
@@ -227,13 +233,16 @@ async def main():
     count = 10
     try:
         _response = [None for _ in range(count)]
-        for i in range(len(source_data) // count):
+        for i in range(500 // count):
             # 비동기 코드 실행
-            await send_data_async(logger,chat_session,source_data[(i*count):(i+1)*count],_response)
-        if len(source_data)%count != 0:
-            await send_data_async(logger,chat_session,source_data[-(len(source_data)%count):],_response)
+            await send_data_async(logger,chat_session,source_data[i*count:(i+1)*count],_response)
+        if 500 % count != 0:
+            await send_data_async(logger,chat_session,source_data[-(500%count):],_response)
     except Exception as e:
         logger.error(f'{_response} : {e}')
+    with open('./id2.txt','w') as f:
+        for i in source_data[500:]:
+            f.write(str(i['id']))
     
 if __name__ == '__main__':
     asyncio.run(main())
