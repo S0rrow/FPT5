@@ -63,14 +63,14 @@ with DAG(
     default_args=default_args,
     description="activate dag when lambda crawler sended result message.",
     start_date=days_ago(1),
-    schedule_interval='30 2 * * * *',
+    schedule_interval='30 117 * * * *',
     max_active_runs=1,
     catchup=False
 ) as dag:
-    
+
     wait_for_message = SqsSensor(
         task_id='wait_for_lambda_message',
-        sqs_queue='https://sqs.ap-northeast-2.amazonaws.com/533267279103/first-preprocessing-message-queue',
+        sqs_queue=queue_url,
         max_messages=4,
         wait_time_seconds=20,
         poke_interval=10,
