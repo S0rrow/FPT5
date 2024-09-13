@@ -4,7 +4,8 @@ from airflow.models import Variable
 from airflow.hooks.base_hook import BaseHook
 from airflow.providers.amazon.aws.hooks.sqs import SqsHook
 from airflow.providers.amazon.aws.sensors.sqs import SqsSensor
-from airflow.operators.python_operator import PythonOperator
+from airflow.operators.python_operator import PythonOperator, BranchPythonOperator
+from airflow.operators.dummy import DummyOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 from kubernetes.client import models as k8s
@@ -43,8 +44,8 @@ def analyze_message(**context):
             message_body = json.loads(message['Body'])
             if message_body.get('site_symbol') == 'RP' and message_body.get('status') == 'SUCCESS':
                 context['ti'].xcom_push(key='receipt_handle', value=message['ReceiptHandle'])
-                return True  # 조건을 만족하면 다음 태스크를 실행
-    return False  # 조건을 만족하지 않으면 다음 태스크를 실행하지 않음
+                return 'first_preprocessing_rocketpunch'  # 조건을 만족하면 다음 태스크를 실행
+    return 'skip_first_preprocessing'  # 조건을 만족하지 않으면 다음 태스크를 실행하지 않음
 
 # 메시지 삭제 함수
 def delete_message_from_sqs(**context):
@@ -81,10 +82,9 @@ with DAG(
         dag=dag,
     )
     
-    start_analyze_message = PythonOperator(
+    start_analyze_message = BranchPythonOperator(
         task_id='analyze_message',
         python_callable=analyze_message,
-        provide_context=True,
         dag=dag,
     )
 
@@ -101,6 +101,10 @@ with DAG(
         dag=dag,
     )
 
+    skip_first_preprocessing = DummyOperator(
+        task_id = 'skip_first_preprocessing',
+    )
+    
     delete_message = PythonOperator(
         task_id='delete_sqs_message',
         python_callable=delete_message_from_sqs,
@@ -118,4 +122,7 @@ with DAG(
         dag=dag,
     )
     
-    wait_for_message >> start_analyze_message >> first_preprocessing >> delete_message >> trigger_2nd_preprocessing
+    wait_for_message >> start_analyze_message
+    start_analyze_message >> [first_preprocessing, skip_first_preprocessing]
+    first_preprocessing >> delete_message >> trigger_2nd_preprocessing
+    skip_first_preprocessing
