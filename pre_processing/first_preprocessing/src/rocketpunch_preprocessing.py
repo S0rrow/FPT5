@@ -62,9 +62,9 @@ def import_bucket():
                 # 파일 이동 및 삭제
                 copy_source = {"Bucket": pull_bucket_name, "Key": obj['Key']}
                 logger.info("Start to Copy data from lake to archive")
-                s3.copy(copy_source, data_archive_bucket_name, obj['Key'])
+                #s3.copy(copy_source, data_archive_bucket_name, obj['Key'])
                 logger.info("Start to Delete data from lake")
-                s3.delete_object(Bucket=pull_bucket_name, Key=obj['Key'])
+                #s3.delete_object(Bucket=pull_bucket_name, Key=obj['Key'])
                 logger.info(f"Processed and moved file {obj['Key']}")
 
             except JSONDecodeError as e:
@@ -87,13 +87,28 @@ def import_bucket():
         logger.error(f"An error occurred while importing bucket data: {e}")
         raise
 
+''''
+ 시간 변환 함수입니다.
+ preprocessing 함수에서 호출합니다.
+'''
+def convert_to_timestamp(date_str):
+    date_pattern = re.compile(r'\d{4}.\d{2}.\d{2}')
+    match = date_pattern.match(date_str)
+    if match:
+        yy, mm, dd = match.groups()
+        date = f"{yy}.{mm}.{dd}"
+        date_obj = datetime.datetime.strptime(date, "%Y.%m.%d")
+        return int(date_obj.timestamp())
+    return None
+
 '''
  전처리를 진행합니다. 
  규칙은 pre-processing_policy.md의 규칙을 따릅니다.
 '''
 def preprocessing(df):
     logger.info("Preprocessing started")
-    processed_list = [] 
+    processed_list = []
+    
     for i, data in df.iterrows():
         try:
             processing_dict = {}
@@ -106,15 +121,20 @@ def preprocessing(df):
                 [item for item in re.sub(r'[^.,/\-+()\s\w]', ' ', re.sub(r'\\/', '/', data['job_detail'])).split() if item not in ['-', '+']]
             )
             processing_dict['indurstry_type'] = re.sub(r'\\/', '/', data['job_industry'])
-
-            date_start = datetime.datetime.strptime(data['date_start'], "%Y.%m.%d")
-            processing_dict['start_date'] = int(date_start.timestamp())
-
-            if 'Null' not in data['date_end']:
-                date_end = datetime.datetime.strptime(data['date_end'], "%Y.%m.%d")
-                processing_dict['end_date'] = int(date_end.timestamp())
+            
+            #date parsing
+            # Process date_start (always convert to timestamp, even if format is wrong or missing)
+            if data['date_start']:
+                processing_dict['start_date'] = convert_to_timestamp(data['date_start']) or int(datetime.datetime.now().timestamp())
             else:
-                processing_dict['end_date'] = 'null'
+                processing_dict['start_date'] = int(datetime.datetime.now().timestamp())
+            
+            # Process date_end (only convert if valid, otherwise set to 'null')
+            if data['date_end']:
+                end_timestamp = convert_to_timestamp(data['date_end'])
+                processing_dict['end_date'] = end_timestamp if end_timestamp is not None else 'null'
+            else:
+                processing_dict['end_date'] = 'null'    
 
             processing_dict['required_career'] = "신입" in data['job_career']
             processing_dict['site_symbol'] = "RP"
@@ -140,7 +160,6 @@ def preprocessing(df):
 
 '''
  데이터프레임의 데이터를 DynamoDB에 업로드합니다.
- batch 형식으로 각 25개씩 dynamoDB에 넣습니다.
 '''
 def upload_data(records):
     dynamodb = boto3.resource(
@@ -158,6 +177,7 @@ def main():
     try:
         df = import_bucket()
         # df가 있는 경우만 전처리 진행
+        print(type(df))
         if df is not None and not df.empty:
             preprocessed_df = preprocessing(df)
             unique_df = preprocessed_df.drop_duplicates(subset='id', keep='first')
