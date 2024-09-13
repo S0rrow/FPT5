@@ -67,7 +67,7 @@ with DAG(
     schedule_interval='0 2 * * * *',
     max_active_runs=1,
     catchup=False,
-    timezone=timezone('Asia/Seoul'),
+    timezone=timezone('Asia/Seoul')
 ) as dag:
 
     wait_for_message = SqsSensor(
