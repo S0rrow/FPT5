@@ -1,6 +1,5 @@
 from airflow import DAG
 from airflow.utils.dates import days_ago
-from pendulum import timezone
 from airflow.models import Variable
 from airflow.hooks.base_hook import BaseHook
 from airflow.providers.amazon.aws.hooks.sqs import SqsHook
@@ -66,8 +65,7 @@ with DAG(
     start_date=days_ago(1),
     schedule_interval='30 2 * * * *',
     max_active_runs=1,
-    catchup=False,
-    timezone=timezone('Asia/Seoul'),
+    catchup=False
 ) as dag:
     
     wait_for_message = SqsSensor(
