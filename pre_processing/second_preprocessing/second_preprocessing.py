@@ -44,14 +44,11 @@ async def send_data_async(logger,chat_session,source_data,_response):
                 json_data = _response[idx].text.replace("```json\n", "").replace("\n```", "")
                 dict_data = json.loads(json_data)
                 data_item = return_concat_data_record(obj=_obj, data_dict=dict_data)
-                print(data_item)
                 upload_data(data_item)
         except Exception as e:
             logger.error(str(e))
-            print(f"error : {e}")
     except Exception as e:
         logger.error(str(e))
-        print(f"error : {e}")
         
 
 
@@ -191,7 +188,7 @@ def main_debug():
         asyncio.run(send_data_async(source_data[i:i+count],_response))
     asyncio.run(send_data_async(source_data[len(source_data)*count:],_response))
     
-def main():
+async def main():
     dynamo_table_name = bucket_info['restore_table_name']
     dynamodb = boto3.resource(
             'dynamodb',
@@ -232,10 +229,11 @@ def main():
         _response = [None for _ in range(count)]
         for i in range(len(source_data) // count):
             # 비동기 코드 실행
-            asyncio.run(send_data_async(logger,chat_session,source_data[i:i+count],_response))
-        asyncio.run(send_data_async(logger,chat_session,source_data[-(len(source_data)%count):],_response))
+            await send_data_async(logger,chat_session,source_data[(i*count):(i+1)*count],_response)
+        if len(source_data)%count != 0:
+            await send_data_async(logger,chat_session,source_data[-(len(source_data)%count):],_response)
     except Exception as e:
         logger.error(f'{_response} : {e}')
     
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
