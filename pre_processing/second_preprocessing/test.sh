@@ -1,2 +1,3 @@
 #!/bin/bash
-python dump_upload.py id.txt
+
+python second_preprocessing.py $1

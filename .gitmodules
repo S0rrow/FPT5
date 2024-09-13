@@ -1,0 +1,6 @@
+[submodule "streamlit"]
+	path = streamlit
+	url = https://github.com/S0rrow/TMI_web
+[submodule "fastapi"]
+	path = fastapi
+	url = https://github.com/S0rrow/TMI_api
