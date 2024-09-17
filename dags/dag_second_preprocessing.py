@@ -96,12 +96,22 @@ with DAG(
         volumes=[volume],
         dag=dag
     )
-    
+    dynamodb_to_rds = KubernetesPodOperator(
+        task_id='dynamodb_to_rds',
+        namespace='airflow',
+        image='ghcr.io/abel3005/second_preprocessing:1.0',
+        cmds=["/bin/bash", "-c"],
+        arguments=["python3 /mnt/data/airflow/third_preprocessing/dynamo_to_rds.py"],
+        name='dynamodb_to_rds',
+        volume_mounts=[volume_mount],
+        volumes=[volume],
+        dag=dag
+    )
     skip_second_preprocessing = DummyOperator(
         task_id='skip_second_preprocessing'
     )
 
 catch_sqs_message >> message_check
 message_check >> [second_preprocessing, skip_second_preprocessing]
-second_preprocessing
+second_preprocessing >> dynamodb_to_rds
 skip_second_preprocessing
