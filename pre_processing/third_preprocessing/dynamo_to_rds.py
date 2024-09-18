@@ -476,7 +476,7 @@ def insert_data(result):
             values['pid'],
             values['job_title'],
             values['site_symbol'],
-            f"[{', '.join(f"'{item}'" for item in values['job_prefer'])}]"  if isinstance(values['job_prefer'], list) else values['job_prefer'],
+            f"[{', '.join(map(repr, values['job_prefer']))}]"  if isinstance(values['job_prefer'], list) else values['job_prefer'],
             values['crawl_url'],
             values['start_date'],
             values['end_date'],
@@ -487,7 +487,7 @@ def insert_data(result):
             values['crawl_domain'],
             values['cid'],
             values['company_name'],
-            f"[{', '.join(f"'{item}'" for item in values['job_requirements'])}]" if isinstance(values['job_requirements'], list) else values['job_requirements']
+            f"[{', '.join(map(repr, values['job_requirements']))}]" if isinstance(values['job_requirements'], list) else values['job_requirements']
         )
         try:
             if values['pid'] not in rds_pid_list:
