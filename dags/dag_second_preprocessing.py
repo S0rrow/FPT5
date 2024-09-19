@@ -99,7 +99,7 @@ with DAG(
     dynamodb_to_rds = KubernetesPodOperator(
         task_id='dynamodb_to_rds',
         namespace='airflow',
-        image='ghcr.io/abel3005/second_preprocessing:1.0',
+        image='ghcr.io/abel3005/third_preprocessing:1.0',
         cmds=["/bin/bash", "-c"],
         arguments=["python3 /mnt/data/airflow/third_preprocessing/dynamo_to_rds.py"],
         name='dynamodb_to_rds',

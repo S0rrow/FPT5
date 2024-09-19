@@ -1,0 +1,8 @@
+boto3==1.35.2
+botocore==1.35.3
+cityhash==0.4.7
+mysql_connector==2.2.9
+numpy==2.1.1
+pandas==2.2.2
+pytz==2024.1
+redis==5.0.8
