@@ -73,12 +73,20 @@ with DAG(
         task_id='wait_for_lambda_message',
         sqs_queue=queue_url,
         max_messages=4,
-        wait_time_seconds=20,
+        num_batches=3,
+        wait_time_seconds=30,
         poke_interval=10,
         delete_message_on_reception=False,
-        timeout=3600,
+        timeout=600,
         aws_conn_id='sqs_event_handler_conn',
         region_name=aws_region,
+        message_filtering='jsonpath',
+        message_filtering_match_values={
+            "Body": {
+                "status": ["SUCCESS"],
+                "site_symbol": ["PRO"]
+            }
+        },
         dag=dag
     )
     
