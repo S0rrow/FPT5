@@ -42,7 +42,7 @@ with DAG(
         namespace='airflow',
         image='ghcr.io/abel3005/third_preprocessing:1.0',
         cmds=["/bin/bash", "-c"],
-        arguments=["python3 /mnt/data/airflow/third_preprocessing/dynamo_to_rds.py"],
+        arguments=["sh /mnt/data/airflow/third_preprocessing/runner.sh"],
         name='dynamodb_to_rds',
         volume_mounts=[volume_mount],
         volumes=[volume],
