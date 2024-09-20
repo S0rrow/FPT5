@@ -76,17 +76,13 @@ with DAG(
         num_batches=4,
         wait_time_seconds=20,
         poke_interval=10,
-        delete_message_on_reception=False,
         timeout=600,
         aws_conn_id='sqs_event_handler_conn',
         region_name=aws_region,
         message_filtering='jsonpath',
-        message_filtering_match_values={
-            "Body": {
-                "status": ["SUCCESS"],
-                "site_symbol": ["PRO"]
-            }
-        },
+        message_filtering_config="$.Body.site_symbol",
+        message_filtering_match_values=["PRO"],
+        delete_message_on_reception=False,
         dag=dag
     )
     
