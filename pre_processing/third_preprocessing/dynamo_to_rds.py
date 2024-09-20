@@ -1,4 +1,4 @@
-import re, datetime, pytz, subprocess, os, json
+import re, pytz, subprocess, os, json
 from botocore.exceptions import ClientError
 from time import gmtime, strftime
 import boto3
@@ -7,6 +7,8 @@ import mysql.connector
 import pandas as pd
 from farmhash import FarmHash32 as fhash
 from boto3.dynamodb.conditions import Key, Attr
+from datetime import datetime
+
 
 import logging
 # parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -408,9 +410,9 @@ def insert_data(result):
     sql_query = """
         INSERT INTO job_information (
             pid, job_title, site_symbol, job_prefer, crawl_url, start_date, end_date, post_status,
-            get_date, required_career, resume_required, crawl_domain, company_name, cid, job_requirements
+            get_date, required_career, resume_required, crawl_domain, company_name, job_requirements
         ) 
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             pid = VALUES(pid),
             job_title = VALUES(job_title),
@@ -424,7 +426,6 @@ def insert_data(result):
             required_career = VALUES(required_career),
             resume_required = VALUES(resume_required),
             crawl_domain = VALUES(crawl_domain),
-            cid = VALUES(cid),
             company_name = VALUES(company_name),
             job_requirements = VALUES(job_requirements)
     """
@@ -444,12 +445,12 @@ def insert_data(result):
     VALUES (%s, %s)
     """
     sql_query4 = """
-    INSERT INTO cartegory (
-        crid, job_cartegory
+    INSERT INTO category (
+        crid, job_category
     ) 
     VALUES (%s, %s)
     ON DUPLICATE KEY UPDATE
-        job_cartegory = VALUES(job_cartegory)
+        job_category = VALUES(job_category)
     """
     sql_query5 = """
     INSERT INTO include_cartegory (
@@ -459,11 +460,11 @@ def insert_data(result):
     """
     sql_query6 = """
     INSERT INTO industry (
-        iid, indurstry_type
+        iid, industry_type
     ) 
     VALUES (%s, %s)
     ON DUPLICATE KEY UPDATE
-        indurstry_type = VALUES(indurstry_type)
+        industry_type = VALUES(industry_type)
     """
     sql_query7 = """
     INSERT INTO industry_relation (
@@ -485,7 +486,6 @@ def insert_data(result):
             values['required_career'],
             values['resume_required'],
             values['crawl_domain'],
-            values['cid'],
             values['company_name'],
             f"[{', '.join(map(repr, values['job_requirements']))}]" if isinstance(values['job_requirements'], list) else values['job_requirements']
         )
@@ -493,13 +493,13 @@ def insert_data(result):
             if values['pid'] not in rds_pid_list:
                 cursor.execute(sql_query, data)
                 connection.commit()
-                logger.info(f"Data successfully load to rds job_information PID : {values['pid']}")
+                print(f"Data successfully load to rds job_information PID : {values['pid']}")
             else:
-                logger.debug(f"overload data to rds")
+                print(f"overload data to rds")
         except mysql.connector.Error as error:
-            logger.info(f"Error executing SQL query for PID {values['pid']}: {error}")  # 에러 로깅
+            print(f"Error executing SQL query for PID {values['pid']}: {error}")  # 에러 로깅
         except Exception as e:
-            logger.info(f"Unexpected error for PID {values['pid']}: {str(e)}")  # 예기치 않은 에러 로깅
+            print(f"Unexpected error for PID {values['pid']}: {str(e)}")  # 예기치 않은 에러 로깅
             
         for stack in values['dev_stack']:
             data2 = (str(fhash(stack)), stack)
@@ -543,7 +543,7 @@ def insert_data(result):
                 else:
                     cursor.execute(sql_query5, data5)
                     connection.commit()
-                    logger.info(f"[cartegory] Data successfully load to rds")
+                    logger.info(f"[category] Data successfully load to rds")
             except mysql.connector.Error as error:
                 logger.error(f"Error executing SQL query for PID {values['pid']}: {error}")  # 에러 로깅
             except Exception as e:
@@ -573,10 +573,20 @@ def insert_data(result):
     cursor.close()  # 커서 종료
     connection.close()  # 연결 종료
     
+
+
+def preprocessing_data(result):
+    result['end_date'] = result['end_date'].apply(lambda x: datetime.fromtimestamp(int(x)).strftime('%Y-%m-%d %H:%M:%S') if x != None and x != 'null' and x != 'None' and x != '' else None)
+    result['get_date'] = result['get_date'].apply(lambda x: datetime.fromtimestamp(int(x)).strftime('%Y-%m-%d %H:%M:%S') if x != None and x != 'null' and x != 'None' and x != '' else None)
+    result['start_date'] = result['start_date'].apply(lambda x: datetime.fromtimestamp(int(x)).strftime('%Y-%m-%d %H:%M:%S') if x != None and x != 'null' and x !='None' and x != '' else None)
+    result['post_status'] = result['post_status'].apply(lambda x: False if type(x) != bool else x)
+    return result
+    
 def main():
     final_id = find_final_id_list()
     print(final_id)
     result = pd.DataFrame(get_processed_data(final_id))
+    result = preprocessing_data(result)
     insert_data(result)
     
     

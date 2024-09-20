@@ -9,6 +9,8 @@ from boto3.dynamodb.conditions import Key, Attr
 from datetime import datetime
 from logging_utils.logging_to_cloudwatch import log
 import sys
+
+
 id_list = list(map(int,sys.argv[1].split(',')))
 logger = log('/aws/preprocessing/second','logs')
 with open("./.KEYS/SECOND_PREPROCESSING_KEY.json", "r") as f:
