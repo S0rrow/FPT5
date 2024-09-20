@@ -65,7 +65,7 @@ with DAG(
     default_args=default_args,
     description="activate dag when lambda crawler sended result message.",
     start_date=days_ago(1),
-    schedule_interval='20 17 * * * *',
+    schedule_interval='30 16 * * * *',
     max_active_runs=1,
     catchup=False
 ) as dag:
