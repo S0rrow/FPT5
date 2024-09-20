@@ -2,7 +2,7 @@ import re, json, datetime, boto3, redis, sys, farmhash
 import pandas as pd
 from json.decoder import JSONDecodeError
 from botocore.exceptions import ClientError
-import logging
+import logging_to_cloudwatch as ltc
 
 import utils 
 
@@ -14,12 +14,7 @@ with open(f'{path}/DATA_SRC_INFO.json', 'r') as f:
     storage_info = json.load(f)
 
 # 로깅 설정 복원
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.FileHandler("app.log"), logging.StreamHandler()]
-)
-logger = logging.getLogger()
+logger = ltc.log('/aws/preprocessing/rocketpunch-first','rocketpunch_logs')
 
 # S3 세션 전역 변수로 선언
 session = utils.return_aws_session(key['aws_access_key_id'], key['aws_secret_key'], key['region'])
