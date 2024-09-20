@@ -81,7 +81,8 @@ with DAG(
         region_name=aws_region,
         message_filtering='jsonpath',
         message_filtering_config="$.Body.site_symbol",
-        message_filtering_match_values=["PRO"],
+        message_filtering_match_values=['PRO'],
+        message_filtering_lambda=lambda message: json.loads(message['Body'])['site_symbol'] == 'PRO',
         delete_message_on_reception=False,
         dag=dag
     )
