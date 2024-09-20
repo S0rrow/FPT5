@@ -72,7 +72,7 @@ with DAG(
     wait_for_message = SqsSensor(
         task_id='wait_for_lambda_message',
         sqs_queue=queue_url,
-        max_messages=4,
+        max_messages=10,
         num_batches=4,
         wait_time_seconds=20,
         poke_interval=10,
