@@ -57,9 +57,9 @@ def import_bucket():
                 # 파일 이동 및 삭제
                 copy_source = {"Bucket": pull_bucket_name, "Key": obj['Key']}
                 logger.info("Start to Copy data from lake to archive")
-                #s3.copy(copy_source, data_archive_bucket_name, obj['Key'])
+                s3.copy(copy_source, data_archive_bucket_name, obj['Key'])
                 logger.info("Start to Delete data from lake")
-                #s3.delete_object(Bucket=pull_bucket_name, Key=obj['Key'])
+                s3.delete_object(Bucket=pull_bucket_name, Key=obj['Key'])
                 logger.info(f"Processed and moved file {obj['Key']}")
 
             except JSONDecodeError as e:
@@ -87,7 +87,8 @@ def import_bucket():
  preprocessing 함수에서 호출합니다.
 '''
 def convert_to_timestamp(date_str):
-    date_pattern = re.compile(r'\d{4}.\d{2}.\d{2}')
+    date_pattern = re.compile(r'(\d{4})[./-](\d{2})[./-](\d{2})')
+    #date_pattern = re.compile(r'\d{4}.\d{2}.\d{2}')
     match = date_pattern.match(date_str)
     if match:
         yy, mm, dd = match.groups()
@@ -172,7 +173,6 @@ def main():
     try:
         df = import_bucket()
         # df가 있는 경우만 전처리 진행
-        print(type(df))
         if df is not None and not df.empty:
             preprocessed_df = preprocessing(df)
             unique_df = preprocessed_df.drop_duplicates(subset='id', keep='first')
