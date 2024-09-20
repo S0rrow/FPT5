@@ -79,10 +79,9 @@ with DAG(
         timeout=600,
         aws_conn_id='sqs_event_handler_conn',
         region_name=aws_region,
-        message_filtering='jsonpath',
-        message_filtering_config="$.Body.site_symbol",
-        message_filtering_match_values=['PRO'],
-        message_filtering_lambda=lambda message: json.loads(message['Body'])['site_symbol'] == 'PRO',
+        #message_filtering='jsonpath',
+        #message_filtering_config="$.Body.site_symbol",
+        #message_filtering_match_values=['PRO'],
         delete_message_on_reception=False,
         dag=dag
     )
