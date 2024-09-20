@@ -28,7 +28,7 @@ volume = k8s.V1Volume(
 )
 
 with DAG(
-    dag_id='second_preprocessing',
+    dag_id='push_dynamo2rds',
     default_args=default_args,
     description="Activate DAG when 1st pre-processing DAG ends. This DAG executes with LLM API for pre-processing.",
     start_date=days_ago(1),
