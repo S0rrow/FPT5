@@ -64,7 +64,7 @@ with DAG(
     default_args=default_args,
     description="activate dag when lambda crawler sended result message.",
     start_date=days_ago(1),
-    schedule_interval='30 17 * * * *',
+    schedule_interval='40 17 * * * *',
     max_active_runs=1,
     catchup=False
 ) as dag:
@@ -72,13 +72,14 @@ with DAG(
     wait_for_message = SqsSensor(
         task_id='wait_for_lambda_message',
         sqs_queue=queue_url,
-        max_messages=4,
+        max_messages=10,
+        num_batches=4,
         wait_time_seconds=20,
         poke_interval=10,
-        delete_message_on_reception=False,
-        timeout=3600,
+        timeout=600,
         aws_conn_id='sqs_event_handler_conn',
         region_name=aws_region,
+        delete_message_on_reception=False,
         dag=dag
     )
     

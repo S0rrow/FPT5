@@ -25,7 +25,7 @@ with open("./.KEYS/DATA_SRC_INFO.json", "r") as f:
 # with open("./DATA_SRC_INFO.json", "r") as f:
     access_info = json.load(f)
 # key 정보 json파일 로드
-with open("./.KEYS/SECOND_PREPROCESSING_KEY.json", "r") as f:
+with open("./.KEYS/DATA_PROVIDING_KEY.json", "r") as f:
 # with open("./API_KEYS.json", "r") as f:
     key = json.load(f)
 # rds 접속 정보 json파일 로드
