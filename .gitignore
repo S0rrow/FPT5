@@ -25,3 +25,6 @@ crawl_code/linkedin/logs/
 # directories need to be ignored from jobkorea crawler
 crawl_code/jobkorea/findAPI/
 
+# submodules
+fastapi/
+streamlit/
