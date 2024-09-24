@@ -1,4 +1,4 @@
-import re, datetime, pytz, subprocess, os, json, boto3
+import re, datetime, pytz, subprocess, os, json, boto3, redis
 from botocore.exceptions import ClientError
 from time import gmtime, strftime
 
@@ -116,28 +116,56 @@ def remove_duplicate_id(s3_client, buket_name, _df):
 # redis에서 id가 존재하는지 체크 후 없는 것들에 대해서 record 반환
 def check_id_in_redis(logger, redis_session, records):
     inited_id_records = []
-    for record in records:
-        _id = record.get('id')
-        _get_date = record.get('get_date')
-        if not redis_session.hexists('compare_id', _id):  # Redis hash에 해당 id가 없으면
-            inited_id_records.append({"id": _id, "get_date": _get_date})
-            logger.info(f"id {_id} is not exist in redis. Added upload list.")
-        else:
-            logger.info(f"id {_id} already exist in redis. This id passed.")
-    
-    logger.info(f"Completed check ids: target ids are {inited_id_records}")
-    return inited_id_records
+    with redis_session.pipeline() as pipe:
+        try:
+            logger.info("watch compare_id redis hash-key")
+            redis_session.watch('compare_id')
+            logger.info("set redis read transaction.")
+            pipe.multi()
+            for record in records:
+                _id = record.get('id')
+                pipe.hexists('compare_id', _id)
+            logger.info("start redis read transaction execute.")
+            exists = pipe.execute()
+            for exist, record in zip(exists, records):
+                if not exist:
+                    inited_id_records.append(record)
+                    logger.info(f"id record {record} is not exist in redis. Added to upload list.")
+                else:
+                    logger.info(f"id {record} already exists in redis. This id passed.")
+        except redis.WatchError: # 만약 다른 클라이언트가 키를 수정하여 트랜잭션이 실패한 경우
+            logger.warning("Transaction failed. Retrying the check for ids...")
+            return check_id_in_redis(logger, redis_session, records)  # 재시도
+        except Exception as e:
+            logger.error(f"An error occurred during the Redis read transaction: {e}")
+        finally:
+            logger.info("unwatch compare_id redis hash-key")
+            redis_session.unwatch()
+            logger.info(f"Completed checking ids: target ids are {inited_id_records}")
+            
+            return inited_id_records
 
 # record에서 없는 id만 redis로 push
 def upload_id_into_redis(logger, redis_session, records):
-    for record in records:
-        _id = record.get('id')
-        _get_date = record.get('get_date')
-        if not redis_session.hexists('compare_id', _id):  # Redis hash에 해당 id가 없으면
-            redis_session.hset('compare_id', _id, _get_date)  # 해당 id를 해시에 저장
-            logger.info(f"id {_id} init into redis.")
-        else:
-            logger.info(f"id {_id} already exist in redis. set id action dismissed")
+    logger.info("start upload id's into redis")
+    with redis_session.pipe() as pipe:
+        try:
+            logger.info("watch compare_id redis hash-key")
+            redis_session.watch('compare_id')
+            logger.info("set redis read transaction.")
+            pipe.multi()
+            for record in records:
+                _id = record.get('id')
+                _get_date = record.get('get_date')
+                pipe.hset('compare_id', _id, _get_date)
+            logger.info("start redis upload transaction execute.")
+            pipe.execute()
+        except Exception as e:
+            logger.error(f"An error occurred during the Redis upload transaction: {e}")
+        finally:
+            logger.info("unwatch compare_id redis hash-key")
+            redis_session.unwatch()
+    logger.info(f"Completed upload id's in redis.")
 
 # dynamoDB로 put한 item들의 id 목록을 sqs를 통해 2차 전처리 DAG에게 전달
 def send_msg_to_sqs(logger, aws_session, sqs_path, site_symbol, records):
