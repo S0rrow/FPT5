@@ -16,7 +16,7 @@ IT 분야에 취직하고자 하는 사람들은 해당 분야에서 깊이 있�
 
 ## 프로젝트 아키텍처 개요
 
-![image](attachments/Overview_ver_20.png)
+![image](attachments/Flow_chart_overview.png)
 
 시스템 아키텍처를 구성하기 위해 사용된 스택은 다음과 같습니다.
 
