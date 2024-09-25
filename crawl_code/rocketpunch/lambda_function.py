@@ -1,8 +1,15 @@
+import requests
 from bs4 import BeautifulSoup as BS
+import json, boto3
 import time, datetime
+import re
 import pandas as pd
 import awswrangler as wr
-import json, re, requests, boto3
+import logging
+import logging_to_cloudwatch as ltc
+
+# 로그 위치 설정
+logger = ltc.log('/aws/lambda/crawler-rocketpunch','rocketpunch_logs')
 
 # 세션 객체를 전역에서 정의하여 재사용
 session = requests.Session()
@@ -78,8 +85,7 @@ date_end, date_start, job_task, job_specialties, job_detail, job_industry
 '''
 def parse_job_page(data, headers):
     job_url = 'https://www.rocketpunch.com/jobs/{}'
-    pattern = re.compile('[ㄱ-힣]+')
-    current_year = datetime.datetime.now().year
+    date_pattern = re.compile(r'\d{4}-\d{2}-\d{2}')
 
     for job in data:
         res = session.get(job_url.format(job['job_id']), headers=headers)
@@ -87,50 +93,51 @@ def parse_job_page(data, headers):
         job['job_url'] = job_url.format(job['job_id'])
         
         # 채용 시작일/만료일 : date_start, date_end
-        job_date = soup.find('div', class_='job-dates')
-        date_span = job_date.find_all('span') if job_date else []
-        only_date_span = [re.sub(pattern, '', span.text) for span in date_span]
+        contents = soup.find_all('div', class_='content')
+        dates = []
         
-        valid_date = []
-        for mmdd in only_date_span:
-            mmdd = mmdd.strip()
-            if mmdd == "" :
-                valid_date.append('Null')
-            else:
-                date_obj = datetime.datetime.strptime(f'{current_year}/{mmdd.strip()}', '%Y/%m/%d')
-                formatted_date = date_obj.strftime('%Y.%m.%d')
-                valid_date.append(formatted_date)
-                
-        job['date_end'] = valid_date[0]
-        job['date_start'] = valid_date[-1]
+        for content in contents:
+            date_match = date_pattern.search(content.text.strip())
+            if date_match:
+                dates.append(date_match.group()) 
+        if len(dates) >= 2:
+            end_date = dates[0]
+            start_date = dates[1]
+            job['date_end'] = end_date
+            job['date_start'] = start_date
         
         # 주요 업무(업무 내용) : job_task
-        job_task_div = soup.find('div', class_='duty break')
-        task_span_hidden = job_task_div.find('span', class_='hide full-text') if job_task_div else None
-        task_span_short = job_task_div.find('span', class_='short-text') if job_task_div and not task_span_hidden else None
-        task_span = task_span_short if task_span_short else task_span_hidden
-        if task_span == None:
-            task_span = job_task_div.get_text(strip=True)
-            job['job_task'] = task_span
-        else:
-            job['job_task'] = task_span.get_text(strip=True) if task_span else ""
-        
+
+        # task_span_hidden = job_task_div.find('span', class_='hide full-text') if job_task_div else None
+        # task_span_short = job_task_div.find('span', class_='short-text') if job_task_div and not task_span_hidden else None
+        # task_span = task_span_short if task_span_short else task_span_hidden
+        try:
+            job_task_div = soup.find('div', class_='duty break')
+            if job_task_div.get_text(strip=True):
+                job['job_task'] = job_task_div.get_text(strip=True)
+            else:
+                job['job_task'] = job_task_div.find('span', class_='hide full-text') 
+        except Exception as e:
+            print(job['job_id'])
+            raise e     
         # 업무 기술/활동분야 : job_specialties
         specialties_raw = soup.find('div', class_='job-specialties')
         specialties = [a.text for a in specialties_raw.find_all('a')] if specialties_raw else []
         job['job_specialties'] = ', '.join(specialties)
         
         # 채용 상세 : job_detail
-        detail_div = soup.find('div', class_='content break')
-        detail_span_hidden = detail_div.find('span', class_='hide full-text') if detail_div else None
-        detail_span_short = detail_div.find('span', class_='short-text') if detail_div and not detail_span_hidden else None
-        detail_span = detail_span_short if detail_span_short else detail_span_hidden
-        if detail_span == None:
-            detail_span = detail_div.get_text(strip=True)
-            job['job_detail'] = detail_span
-        else:
-            job['job_detail'] = detail_span.get_text(strip=True) if task_span else ""
-            
+        # detail_span_hidden = detail_div.find('span', class_='hide full-text') if detail_div else None
+        # detail_span_short = detail_div.find('span', class_='short-text') if detail_div and not detail_span_hidden else None
+        # detail_span = detail_span_short if detail_span_short else detail_span_hidden
+        try:
+            detail_div = soup.find('div', class_='content break')
+            if detail_div.get_text(strip=True):
+                job['job_detail'] = detail_div.get_text(strip=True)
+            else:
+                job['job_detail'] = detail_div.find('span', class_='hide full-text')
+        except Exception as e:
+            print(job['job_id'])
+            raise e     
         # 산업 분야 : job_industry
         industry_div = soup.find('div', class_='job-company-areas')
         industry_text = [a.text for a in industry_div.find_all('a')] if industry_div else []
@@ -151,8 +158,8 @@ def send_sqs_message(sqs_url, message):
         raise e
 
 def lambda_handler(event, context):
+    # set variable
     payload = event.get('data', {})
-    s3_path = payload.get('s3_path')
     sqs_url = payload.get('sqs_url')
     crawl_time = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
     headers = {
@@ -170,25 +177,20 @@ def lambda_handler(event, context):
     }
     
     try:
+        logger.info("Calling rocketpunch API func start")
         data_dic = rocketpunch_crawler(url, headers)
+        logger.info("Calling rocketpunch API func done")
+        logger.info("Calling rocketpunch job detail func start")
         detailed_data = parse_job_page(data_dic, headers)
-        
-        ##금일자 새로 올라온 채용공고만 따로 저장
-        mm = datetime.datetime.today().year
-        dd = datetime.datetime.today().month
-    
-        new_hired = []
-        for data in detailed_data :
-            year, month, day = data['date_start'].split('.')
-            if month == mm and day == dd:
-                new_hired.append(data)
+        logger.info("Calling rocketpunch job detail func done")
         
         # 전체 데이터 저장
-        #df = pd.DataFrame(detailed_data)
+        df = pd.DataFrame(detailed_data)
         
-        #금일자 데이터 저장
-        df = pd.DataFrame(new_hired)
+        #어제 일자 데이터 저장
+        #df = pd.DataFrame(new_hired)
         
+        logger.info("loading only yesterday's data to S3 bucket")
         wr.s3.to_json(df=df, path=f"s3://crawl-data-lake/rocketpunch/data/{crawl_time}.json", orient='records', lines=True, force_ascii=False, date_format='iso')
         send_respone = send_sqs_message(sqs_url, message)
         return {"statusCode": 200, "body": f"Data processed successfully. SQSMessageId: {str(send_respone)}"}
@@ -204,4 +206,3 @@ def lambda_handler(event, context):
         return {"statusCode": 500, "body": f"Error loading offset: {str(e)} "}
    
 session.close()
-
