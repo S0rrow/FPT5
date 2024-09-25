@@ -1,4 +1,0 @@
-awswrangler==3.9.1
-boto3==1.35.2
-jobspy==0.29.0
-pandas==2.2.2
